@@ -122,3 +122,14 @@ npm run build
 npm test
 npm run examples:smoke
 ```
+
+## Releases
+
+Tagging `vX.Y.Z` publishes the matching package version to npm and creates a GitHub release.
+
+```bash
+npm version patch
+git push origin main --follow-tags
+```
+
+GitHub Actions expects an `NPM_TOKEN` repo secret with npm publish access.
