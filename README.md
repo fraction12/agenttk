@@ -132,4 +132,3 @@ npm version patch
 git push origin main --follow-tags
 ```
 
-GitHub Actions expects an `NPM_TOKEN` repo secret with npm publish access.
