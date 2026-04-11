@@ -1,0 +1,55 @@
+{
+  "name": "agenttk",
+  "version": "0.1.0",
+  "description": "A TypeScript toolkit for building deterministic, agent-friendly CLIs.",
+  "author": "Dushyant Garg",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test test/**/*.test.ts",
+    "examples:smoke": "node examples/minimal-cli/index.mjs hello --json && node examples/tasks-cli/index.mjs add --title \"Send estimate\" --dry-run --json && node examples/tasks-cli/index.mjs add",
+    "verify": "npm run build && npm test && npm run examples:smoke",
+    "prepublishOnly": "npm run verify"
+  },
+  "keywords": [
+    "cli",
+    "agents",
+    "toolkit",
+    "typescript",
+    "automation",
+    "ai"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fraction12/agenttk.git"
+  },
+  "homepage": "https://github.com/fraction12/agenttk#readme",
+  "bugs": {
+    "url": "https://github.com/fraction12/agenttk/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}
