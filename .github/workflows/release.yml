@@ -40,15 +40,8 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to npm with trusted publishing
-        if: ${{ secrets.NPM_TOKEN == '' }}
+      - name: Publish to npm
         run: npm publish --provenance --access public
-
-      - name: Publish to npm with token fallback
-        if: ${{ secrets.NPM_TOKEN != '' }}
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
