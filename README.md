@@ -1,29 +1,14 @@
 # AgentTK
 
-**AgentTK** is a small TypeScript toolkit for deterministic, agent-friendly CLIs.
+AgentTK is a small TypeScript toolkit for building deterministic, agent-friendly CLIs.
 
-It gives you a stable result envelope, predictable JSON output, concise human output, reusable validation, dry-run support, and a lightweight testing kit.
-
-## V0 scope
-
-Included in v0:
-- tool creation and command registration
-- structured success and failure envelopes
+It gives you:
+- structured success and failure results
+- clean JSON output for agents
+- simple human output for operators
 - validation helpers
-- output rendering for JSON and human mode
 - dry-run helpers
 - lightweight test helpers
-
-Not included in v0:
-- plugin systems
-- workflow engines
-- auth doctor flows
-- provenance helpers
-- lookup resolvers
-- live UAT runners
-- domain adapters for third-party systems
-
-The point is a sharp dependency, not a sprawling framework.
 
 ## Install
 
@@ -31,13 +16,13 @@ The point is a sharp dependency, not a sprawling framework.
 npm install agenttk
 ```
 
-If you want schema-based validation, install `zod` in the consuming CLI as well:
+If you want schema validation:
 
 ```bash
 npm install zod
 ```
 
-## Minimal example
+## Example
 
 ```ts
 import { createTool, defineCommand, ok } from 'agenttk'
@@ -59,13 +44,13 @@ const tool = createTool({
 await tool.run(process.argv.slice(2))
 ```
 
-## Validation + dry-run example
+## Validation + dry-run
 
 ```ts
 import { z } from 'zod'
 import { asDryRun, createTool, defineCommand, isFailure, ok, validateInput } from 'agenttk'
 
-const addTaskSchema = z.object({
+const schema = z.object({
   title: z.string().min(1, 'title is required'),
   dryRun: z.boolean().default(false)
 })
@@ -76,7 +61,7 @@ const tool = createTool({
     defineCommand({
       name: 'add',
       handler: async () => {
-        const parsed = validateInput(addTaskSchema, { title: '', dryRun: true }, {
+        const parsed = validateInput(schema, { title: '', dryRun: true }, {
           nextStep: 'Run tasks add --title "Send estimate" [--dry-run]'
         })
 
@@ -96,16 +81,16 @@ const tool = createTool({
 })
 ```
 
-## Public API
+## API
 
-Core runtime:
+Core:
 - `createTool`
 - `defineCommand`
 - `ok`
 - `fail`
 - `isFailure`
 
-Command blocks:
+Helpers:
 - `validateInput`
 - `validationError`
 - `expectedPayloadShape`
@@ -113,18 +98,16 @@ Command blocks:
 - `renderResult`
 - `asDryRun`
 
-Testing kit:
+Testing:
 - `runTool`
 - `expectOk`
 - `expectFailure`
 - `fakeAdapter`
 
-## Example CLIs in this repo
+## Examples
 
-- `examples/minimal-cli/` - smallest consumer-facing example
-- `examples/tasks-cli/` - validation and dry-run example
-
-Run them locally:
+- `examples/minimal-cli/`
+- `examples/tasks-cli/`
 
 ```bash
 node examples/minimal-cli/index.mjs hello --json
@@ -132,40 +115,10 @@ node examples/tasks-cli/index.mjs add --title "Send estimate" --dry-run --json
 node examples/tasks-cli/index.mjs add
 ```
 
-## Repo layout
-
-```text
-src/
-  core/
-  blocks/
-  errors/
-  testing/
-examples/
-  minimal-cli/
-  tasks-cli/
-test/
-openspec/
-```
-
 ## Development
 
 ```bash
 npm run build
 npm test
-openspec validate add-agenttk-v0
+npm run examples:smoke
 ```
-
-## Publish readiness
-
-Current state:
-- build passes
-- tests pass
-- example smoke checks pass
-- `openspec validate add-agenttk-v0` passes
-- npm dry-run pack succeeds
-- package name `agenttk` is currently unclaimed on npm
-
-## Current status
-
-The full `add-agenttk-v0` task list is implemented and verified.
-The remaining work is release-facing, for example npm account auth, final version choice, and first publish.
