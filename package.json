@@ -19,8 +19,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test test/**/*.test.ts",
-    "examples:smoke": "node examples/minimal-cli/index.mjs hello --json && node examples/tasks-cli/index.mjs add --title \"Send estimate\" --dry-run --json && node examples/tasks-cli/index.mjs add",
+    "test": "node --import tsx --test test/*.test.ts",
+    "examples:smoke": "node examples/minimal-cli/index.mjs hello --json && node examples/tasks-cli/index.mjs add --title \"Send estimate\" --dry-run --json && node examples/tasks-cli/index.mjs add --title \"Send estimate\"",
     "verify": "npm run build && npm test && npm run examples:smoke",
     "prepublishOnly": "npm run verify"
   },
