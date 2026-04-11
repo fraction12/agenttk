@@ -1,14 +1,38 @@
 # AgentTK
 
+[![npm version](https://img.shields.io/npm/v/agenttk)](https://www.npmjs.com/package/agenttk)
+[![Verify](https://github.com/fraction12/agenttk/actions/workflows/verify.yml/badge.svg)](https://github.com/fraction12/agenttk/actions/workflows/verify.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 AgentTK is a small TypeScript toolkit for building deterministic, agent-friendly CLIs.
 
-It gives you:
-- structured success and failure results
-- clean JSON output for agents
-- simple human output for operators
-- validation helpers
-- dry-run helpers
-- lightweight test helpers
+It gives you a clean core for tools that need:
+- structured success and failure envelopes
+- JSON-first output for agents
+- concise human output for operators
+- validation helpers with corrective guidance
+- dry-run semantics for mutation commands
+- lightweight test helpers for CLI behavior
+
+## What it is
+
+AgentTK is not a giant framework. It is a narrow toolkit for building reliable CLIs with a stable machine-facing contract.
+
+Use it when you want:
+- predictable command dispatch
+- machine-readable results without string parsing
+- simple human output layered on top of the same result envelope
+- small test helpers instead of shell-heavy CLI tests
+
+## What it is not
+
+v0 intentionally does **not** include:
+- plugin systems
+- workflow engines
+- auth doctor flows
+- provenance helpers
+- dynamic runtime loading
+- domain-specific adapters
 
 ## Install
 
@@ -121,14 +145,24 @@ node examples/tasks-cli/index.mjs add
 npm run build
 npm test
 npm run examples:smoke
+npm run verify
 ```
 
-## Releases
+## Changelog
 
-Tagging `vX.Y.Z` publishes the matching package version to npm and creates a GitHub release.
+See [CHANGELOG.md](./CHANGELOG.md).
+
+## Release discipline
+
+For normal releases:
 
 ```bash
 npm version patch
 git push origin main --follow-tags
 ```
 
+Rules:
+- release only from a clean `main`
+- let CI verify before trusting the tag
+- keep `package.json`, npm, and GitHub releases aligned
+- document user-visible changes in `CHANGELOG.md`
