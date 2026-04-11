@@ -1,6 +1,5 @@
 node_modules/
 dist/
-openspec/
 .DS_Store
 npm-debug.log*
 *.tgz
