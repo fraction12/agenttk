@@ -61,16 +61,9 @@ The system SHALL support a standard structured success envelope for command resu
 ### Requirement: Stable failure envelope
 The system SHALL support a standard structured failure envelope for command results.
 
-#### Scenario: Failed command result
-- **WHEN** a command fails
-- **THEN** it returns an envelope containing `ok: false`
-- **AND** it includes an `error.code`
-- **AND** it includes an `error.message`
-- **AND** it MAY include a `type` when the failure belongs to a specific command domain
-
-#### Scenario: Failure envelope is JSON-safe
-- **WHEN** a failure result is rendered in JSON mode
-- **THEN** the payload preserves the error structure without mixing in human-oriented formatting
+#### Scenario: Adapter failures stay normalized
+- **WHEN** a downstream command converts an adapter-layer failure into an AgentTK failure result
+- **THEN** the failure envelope can preserve category and retryability hints without leaking raw provider response formats into the runtime contract
 
 ### Requirement: Separate package consumption
 The system SHALL be usable as a dependency from separate TypeScript CLI repositories.

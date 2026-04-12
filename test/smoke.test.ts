@@ -3,11 +3,13 @@ import assert from 'node:assert/strict'
 import { z } from 'zod'
 import {
   accountMismatch,
+  adapterFailure,
   ambiguousMatch,
   asDryRun,
   authInvalid,
   authRequired,
   createTool,
+  defineAdapter,
   defineCommand,
   expectFailure,
   expectOk,
@@ -16,10 +18,13 @@ import {
   notFound,
   ok,
   requireAuth,
+  requireCapability,
   resolveById,
   resolveByQuery,
   resolveOne,
   runTool,
+  supportsCapability,
+  unsupportedCapability,
   validateInput
 } from '../src/index.js'
 
@@ -349,6 +354,55 @@ test('resolveOne returns AMBIGUOUS_MATCH with compact candidates', () => {
   assert.equal(failure.error.details?.nextStep, 'Retry with an explicit id')
 })
 
+test('adapter contracts expose stable capability checks', () => {
+  const adapter = defineAdapter({
+    provider: 'google',
+    capabilities: ['tasks.read', 'tasks.write'] as const
+  })
+
+  assert.equal(supportsCapability(adapter, 'tasks.read'), true)
+  assert.equal(supportsCapability(adapter, 'tasks.write'), true)
+  assert.equal(supportsCapability(adapter, 'calendar.read'), false)
+})
+
+test('requireCapability returns a structured unsupported capability failure', () => {
+  const adapter = defineAdapter({
+    provider: 'google',
+    capabilities: ['tasks.read'] as const
+  })
+
+  const result = requireCapability(adapter, 'tasks.write', {
+    operation: 'createTask',
+    nextStep: 'Use an adapter with tasks.write support'
+  })
+
+  const failure = expectFailure(result, 'UNSUPPORTED_CAPABILITY')
+  assert.equal(failure.error.details?.provider, 'google')
+  assert.equal(failure.error.details?.capability, 'tasks.write')
+  assert.equal(failure.error.details?.operation, 'createTask')
+  assert.equal(failure.error.details?.retryable, false)
+})
+
+test('adapterFailure preserves normalized category and retryability hints', () => {
+  const failure = expectFailure(
+    adapterFailure('Google API timed out', {
+      provider: 'google',
+      operation: 'listTasks',
+      category: 'timeout',
+      retryable: true,
+      causeCode: 'ETIMEDOUT',
+      nextStep: 'Retry in a few seconds'
+    }),
+    'ADAPTER_ERROR'
+  )
+
+  assert.equal(failure.error.details?.provider, 'google')
+  assert.equal(failure.error.details?.operation, 'listTasks')
+  assert.equal(failure.error.details?.category, 'timeout')
+  assert.equal(failure.error.details?.retryable, true)
+  assert.equal(failure.error.details?.causeCode, 'ETIMEDOUT')
+})
+
 test('lookup failures render candidates and next steps in human mode', async () => {
   const tool = createTool({
     name: 'demo',
@@ -379,6 +433,32 @@ test('lookup failures render candidates and next steps in human mode', async () 
   assert.match(result.stderr, /Invoice follow-up \(task-1\) - Daily Focus/)
   assert.match(result.stderr, /Invoice draft \(task-2\) - Backlog/)
   assert.match(result.stderr, /Next step: Run demo pick --id task-1/)
+})
+
+test('adapter failures render normalized details in human mode', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'sync',
+        handler: async () =>
+          unsupportedCapability('tasks.write', {
+            provider: 'google',
+            operation: 'createTask',
+            nextStep: 'Reconnect with write scopes'
+          })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['sync'])
+  expectFailure(result.result, 'UNSUPPORTED_CAPABILITY')
+  assert.match(result.stderr, /Error \[UNSUPPORTED_CAPABILITY\]: Adapter does not support capability: tasks.write/)
+  assert.match(result.stderr, /Provider: google/)
+  assert.match(result.stderr, /Operation: createTask/)
+  assert.match(result.stderr, /Capability: tasks.write/)
+  assert.match(result.stderr, /Retryable: no/)
+  assert.match(result.stderr, /Next step: Reconnect with write scopes/)
 })
 
 test('notFound helper preserves structured lookup guidance', () => {

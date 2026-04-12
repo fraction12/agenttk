@@ -32,6 +32,7 @@ v0 intentionally does **not** include:
 - auth doctor flows
 - provenance helpers
 - dynamic runtime loading
+- provider SDK wrappers
 - domain-specific adapters
 
 ## Install
@@ -128,6 +129,11 @@ Helpers:
 - `authInvalid`
 - `accountMismatch`
 - `requireAuth`
+- `defineAdapter`
+- `supportsCapability`
+- `requireCapability`
+- `adapterFailure`
+- `unsupportedCapability`
 - `notFound`
 - `ambiguousMatch`
 - `resolveById`
@@ -169,6 +175,50 @@ const tool = createTool({
 })
 ```
 
+## Adapter contracts
+
+```ts
+import {
+  adapterFailure,
+  createTool,
+  defineAdapter,
+  defineCommand,
+  requireCapability
+} from 'agenttk'
+
+const adapter = defineAdapter({
+  provider: 'google',
+  capabilities: ['tasks.read']
+})
+
+const tool = createTool({
+  name: 'tasks',
+  commands: [
+    defineCommand({
+      name: 'add',
+      handler: async () => {
+        const capability = requireCapability(adapter, 'tasks.write', {
+          operation: 'createTask',
+          nextStep: 'Reconnect with write scopes'
+        })
+
+        if (capability !== true) return capability
+
+        return adapterFailure('Google API timed out', {
+          provider: 'google',
+          operation: 'createTask',
+          category: 'timeout',
+          retryable: true,
+          nextStep: 'Retry in a few seconds'
+        })
+      }
+    })
+  ]
+})
+```
+
+Provider-specific SDK calls and object models should stay in the downstream repo. AgentTK only owns the contract boundary, capability checks, and normalized failure shapes.
+
 ## Lookup resolution
 
 ```ts
@@ -201,12 +251,14 @@ const tool = createTool({
 
 - `examples/minimal-cli/`
 - `examples/tasks-cli/`
+- `examples/adapter-cli/`
 
 ```bash
 node examples/minimal-cli/index.mjs hello --json
 node examples/minimal-cli/index.mjs help
 node examples/tasks-cli/index.mjs add --title "Send estimate" --dry-run --json
 node examples/tasks-cli/index.mjs add
+node examples/adapter-cli/index.mjs status --json
 ```
 
 ## Development
