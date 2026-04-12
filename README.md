@@ -152,6 +152,13 @@ Testing:
 - `runTool`
 - `expectOk`
 - `expectFailure`
+- `expectDryRun`
+- `expectAuthFailure`
+- `expectLookupFailure`
+- `expectAdapterFailure`
+- `expectConfigFailure`
+- `authFailureFixture`
+- `lookupCandidatesFixture`
 - `fakeAdapter`
 
 ## Auth preflight
@@ -281,12 +288,39 @@ const tool = createTool({
 })
 ```
 
+## Testing helpers
+
+Use the richer assertions when you want cheap confidence around framework primitives, not shell-heavy rechecks of every field by hand.
+
+```ts
+import test from 'node:test'
+import { authFailureFixture, expectAuthFailure, requireAuth } from 'agenttk'
+
+test('auth failure stays structured', async () => {
+  const auth = await requireAuth(authFailureFixture({
+    code: 'ACCOUNT_MISMATCH',
+    currentAccount: 'personal@example.com',
+    expectedAccount: 'team@example.com'
+  }))
+
+  expectAuthFailure(auth, {
+    code: 'ACCOUNT_MISMATCH',
+    provider: 'google',
+    currentAccount: 'personal@example.com',
+    expectedAccount: 'team@example.com'
+  })
+})
+```
+
+Keep using plain `runTool(...)` tests for command wiring and output mode checks. Use the richer helpers when you want fast, data-first checks around auth, lookup, dry-run, adapter, and config behavior.
+
 ## Examples
 
 - `examples/minimal-cli/`
 - `examples/tasks-cli/`
 - `examples/adapter-cli/`
 - `examples/config-cli/`
+- `examples/testing-fixtures/`
 
 ```bash
 node examples/minimal-cli/index.mjs hello --json

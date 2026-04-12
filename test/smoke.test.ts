@@ -12,7 +12,12 @@ import {
   defineAdapter,
   defineCommand,
   defineProfile,
+  expectAdapterFailure,
+  expectAuthFailure,
+  expectConfigFailure,
+  expectDryRun,
   expectFailure,
+  expectLookupFailure,
   expectOk,
   fakeAdapter,
   loadConfig,
@@ -31,7 +36,9 @@ import {
   supportsCapability,
   unsupportedCapability,
   validateConfig,
-  validateInput
+  validateInput,
+  authFailureFixture,
+  lookupCandidatesFixture
 } from '../src/index.js'
 
 test('tool runs a simple command and emits json', async () => {
@@ -272,23 +279,38 @@ test('auth invalid and account mismatch helpers use stable auth codes', async ()
 })
 
 test('requireAuth short-circuits auth failures from a preflight check', async () => {
-  const gated = await requireAuth(async () => ({
-    ok: false as const,
+  const gated = await requireAuth(async () =>
+    authFailureFixture({
+      code: 'ACCOUNT_MISMATCH',
+      currentAccount: 'personal@example.com',
+      expectedAccount: 'team@example.com',
+      nextStep: 'Reauthenticate with the team account'
+    })
+  )
+
+  const failure = expectAuthFailure(gated, {
     code: 'ACCOUNT_MISMATCH',
     provider: 'google',
-    currentAccount: 'personal@example.com',
     expectedAccount: 'team@example.com',
-    nextStep: 'Reauthenticate with the team account'
-  }))
-
-  const failure = expectFailure(gated, 'ACCOUNT_MISMATCH')
-  assert.equal(failure.error.details?.provider, 'google')
+    currentAccount: 'personal@example.com'
+  })
   assert.equal(failure.error.details?.expectedAccount, 'team@example.com')
 })
 
 test('requireAuth returns true for a passing auth preflight', async () => {
   const result = await requireAuth({ ok: true, provider: 'google', account: 'team@example.com' })
   assert.equal(result, true)
+})
+
+test('testing fixtures provide reusable auth and lookup defaults', () => {
+  const auth = authFailureFixture()
+  assert.equal(auth.ok, false)
+  assert.equal(auth.code, 'AUTH_REQUIRED')
+  assert.equal(auth.provider, 'google')
+
+  const candidates = lookupCandidatesFixture()
+  assert.equal(candidates.length, 2)
+  assert.equal(candidates[0]?.id, 'task-1')
 })
 
 test('human auth output renders provider, account context, and next step', async () => {
@@ -344,18 +366,16 @@ test('resolveOne returns NOT_FOUND with guidance for misses', () => {
 })
 
 test('resolveOne returns AMBIGUOUS_MATCH with compact candidates', () => {
-  const result = resolveOne(
-    { query: 'invoice' },
-    [
-      { id: 'task-1', label: 'Invoice follow-up', description: 'Daily Focus' },
-      { id: 'task-2', label: 'Invoice draft', description: 'Backlog' }
-    ],
-    { nextStep: 'Retry with an explicit id' }
-  )
+  const result = resolveOne({ query: 'invoice' }, lookupCandidatesFixture(), {
+    nextStep: 'Retry with an explicit id'
+  })
 
-  const failure = expectFailure(result, 'AMBIGUOUS_MATCH')
+  const failure = expectLookupFailure(result, {
+    code: 'AMBIGUOUS_MATCH',
+    query: 'invoice',
+    candidateCount: 2
+  })
   const candidates = failure.error.details?.candidates as Array<{ id: string; label: string }>
-  assert.equal(candidates.length, 2)
   assert.equal(candidates[0]?.id, 'task-1')
   assert.equal(failure.error.details?.nextStep, 'Retry with an explicit id')
 })
@@ -382,11 +402,13 @@ test('requireCapability returns a structured unsupported capability failure', ()
     nextStep: 'Use an adapter with tasks.write support'
   })
 
-  const failure = expectFailure(result, 'UNSUPPORTED_CAPABILITY')
-  assert.equal(failure.error.details?.provider, 'google')
-  assert.equal(failure.error.details?.capability, 'tasks.write')
+  const failure = expectAdapterFailure(result, {
+    code: 'UNSUPPORTED_CAPABILITY',
+    provider: 'google',
+    capability: 'tasks.write',
+    retryable: false
+  })
   assert.equal(failure.error.details?.operation, 'createTask')
-  assert.equal(failure.error.details?.retryable, false)
 })
 
 test('adapterFailure preserves normalized category and retryability hints', () => {
@@ -481,25 +503,30 @@ test('loadConfig merges base config, selected profile, and env overrides', () =>
 })
 
 test('missingConfig and malformed config paths preserve structured diagnostics', () => {
-  const missing = expectFailure(
+  const missing = expectConfigFailure(
     missingConfig('API_BASE_URL', {
       source: 'env',
       nextStep: 'Set API_BASE_URL and try again'
     }),
-    'CONFIG_ERROR'
+    {
+      reason: 'missing',
+      source: 'env',
+      key: 'API_BASE_URL'
+    }
   )
-  assert.equal(missing.error.details?.reason, 'missing')
   assert.equal(missing.error.details?.source, 'env')
 
-  const malformed = expectFailure(
+  const malformed = expectConfigFailure(
     malformedConfig('apiBaseUrl: Invalid url', {
       source: 'merged',
       expected: '{"apiBaseUrl":"https://api.example.com"}',
       issues: ['apiBaseUrl: Invalid url']
     }),
-    'CONFIG_ERROR'
+    {
+      reason: 'malformed',
+      source: 'merged'
+    }
   )
-  assert.equal(malformed.error.details?.reason, 'malformed')
   assert.equal(malformed.error.details?.source, 'merged')
 })
 
@@ -624,8 +651,7 @@ test('dry-run preserves payload and marks successful results', async () => {
     })
   )
 
-  const success = expectOk(result)
-  assert.equal(success.dryRun, true)
+  const success = expectDryRun(result)
   assert.equal(success.id, 'task-123')
   assert.equal(success.destination, 'google_tasks')
   assert.deepEqual(success.record, { title: 'Send estimate' })

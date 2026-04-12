@@ -86,5 +86,14 @@ export { asDryRun } from './blocks/dry-run.js'
 export * from './errors/index.js'
 
 export { runTool } from './testing/run-cli.js'
-export { expectFailure, expectOk } from './testing/assertions.js'
+export {
+  expectAdapterFailure,
+  expectAuthFailure,
+  expectConfigFailure,
+  expectDryRun,
+  expectFailure,
+  expectLookupFailure,
+  expectOk
+} from './testing/assertions.js'
+export { authFailureFixture, lookupCandidatesFixture } from './testing/fixtures.js'
 export { fakeAdapter } from './testing/fake-adapter.js'
