@@ -9,10 +9,23 @@ function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): st
   const currentAccount = typeof details.currentAccount === 'string' ? details.currentAccount : undefined
   const expectedAccount = typeof details.expectedAccount === 'string' ? details.expectedAccount : undefined
   const nextStep = typeof details.nextStep === 'string' ? details.nextStep : undefined
+  const query = typeof details.query === 'string' ? details.query : undefined
+  const candidates = Array.isArray(details.candidates) ? details.candidates : undefined
 
   if (provider) lines.push(`Provider: ${provider}`)
   if (currentAccount) lines.push(`Current account: ${currentAccount}`)
   if (expectedAccount) lines.push(`Expected account: ${expectedAccount}`)
+  if (query) lines.push(`Query: ${query}`)
+  if (candidates?.length) {
+    lines.push('Candidates:')
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== 'object') continue
+      const id = typeof candidate.id === 'string' ? candidate.id : 'unknown'
+      const label = typeof candidate.label === 'string' ? candidate.label : 'unknown'
+      const description = typeof candidate.description === 'string' ? ` - ${candidate.description}` : ''
+      lines.push(`- ${label} (${id})${description}`)
+    }
+  }
   if (nextStep) lines.push(`Next step: ${nextStep}`)
 
   return lines

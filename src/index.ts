@@ -32,6 +32,20 @@ export type {
   AuthFailureDetails
 } from './blocks/auth.js'
 export {
+  ambiguousMatch,
+  notFound,
+  resolveById,
+  resolveByQuery,
+  resolveOne
+} from './blocks/lookup.js'
+export type {
+  CandidateSummary,
+  ResolutionFailure,
+  ResolutionInput,
+  ResolutionResult,
+  ResolutionSuccess
+} from './blocks/lookup.js'
+export {
   expectedPayloadShape,
   nextStepGuidance,
   validateInput,

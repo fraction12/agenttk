@@ -10,11 +10,12 @@ All notable changes to this project will be documented in this file.
 - structured help payloads in JSON mode
 - auth failure helpers for required, invalid, and account-mismatch states
 - auth preflight helper for provider-backed commands
+- lookup-resolution helpers for id-or-query flows, not-found outcomes, and ambiguous matches
 
 ### Changed
 - command and tool metadata now support descriptions, aliases, usage, and examples
-- human failure output can now render structured auth guidance details
-- README examples now show help-oriented command metadata and auth preflight usage
+- human failure output can now render structured auth guidance details and lookup candidate summaries
+- README examples now show help-oriented command metadata, auth preflight usage, and lookup resolution patterns
 
 ## [0.1.3] - 2026-04-11
 
