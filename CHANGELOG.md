@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.1.4] - 2026-04-12
 
 ### Added
 - built-in tool help and command help
