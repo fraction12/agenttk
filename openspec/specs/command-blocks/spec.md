@@ -18,13 +18,10 @@ The system SHALL provide reusable validation helpers for command inputs.
 ### Requirement: Corrective guidance in validation failures
 The system SHALL support validation failures that include corrective guidance.
 
-#### Scenario: Validation error includes expected shape
-- **WHEN** a caller submits malformed JSON or the wrong object shape to a command
-- **THEN** AgentTK can return a validation failure that includes an example or expected payload shape in the error message
-
-#### Scenario: Validation error points to the next action
-- **WHEN** a caller omits a required value that must be looked up first
-- **THEN** AgentTK can return a validation failure that includes the next command or lookup step needed to correct the input
+#### Scenario: Auth guidance uses the same corrective model
+- **WHEN** a downstream tool returns an auth-related failure with a next-step recommendation
+- **THEN** AgentTK renders that guidance in the same concise actionable style used for validation repair paths
+- **AND** tools do not need a separate human-output system just for auth repair
 
 ### Requirement: Output rendering for JSON mode
 The system SHALL render command results as structured JSON when JSON mode is enabled.

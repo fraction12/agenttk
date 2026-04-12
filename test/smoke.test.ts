@@ -2,7 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { z } from 'zod'
 import {
+  accountMismatch,
   asDryRun,
+  authInvalid,
+  authRequired,
   createTool,
   defineCommand,
   expectFailure,
@@ -10,6 +13,7 @@ import {
   fakeAdapter,
   nextStepGuidance,
   ok,
+  requireAuth,
   runTool,
   validateInput
 } from '../src/index.js'
@@ -217,6 +221,82 @@ test('validation failures can include next-step guidance', async () => {
     assert.equal(result.error.code, 'VALIDATION_ERROR')
     assert.match(result.error.message, /Next step: Run relay inbox --json/)
   }
+})
+
+test('auth required failure preserves guidance in json mode', async () => {
+  const result = authRequired('Google auth required', {
+    provider: 'google',
+    nextStep: 'Run demo auth login'
+  })
+
+  const failure = expectFailure(result, 'AUTH_REQUIRED')
+  assert.equal(failure.error.details?.provider, 'google')
+  assert.equal(failure.error.details?.nextStep, 'Run demo auth login')
+})
+
+test('auth invalid and account mismatch helpers use stable auth codes', async () => {
+  const invalid = expectFailure(
+    authInvalid('Stored token has expired', {
+      provider: 'google',
+      nextStep: 'Run demo auth login'
+    }),
+    'AUTH_INVALID'
+  )
+  assert.equal(invalid.error.details?.provider, 'google')
+
+  const mismatch = expectFailure(
+    accountMismatch('team@example.com', 'personal@example.com', 'Wrong Google account', {
+      provider: 'google',
+      nextStep: 'Switch accounts and try again'
+    }),
+    'ACCOUNT_MISMATCH'
+  )
+  assert.equal(mismatch.error.details?.expectedAccount, 'team@example.com')
+  assert.equal(mismatch.error.details?.currentAccount, 'personal@example.com')
+})
+
+test('requireAuth short-circuits auth failures from a preflight check', async () => {
+  const gated = await requireAuth(async () => ({
+    ok: false as const,
+    code: 'ACCOUNT_MISMATCH',
+    provider: 'google',
+    currentAccount: 'personal@example.com',
+    expectedAccount: 'team@example.com',
+    nextStep: 'Reauthenticate with the team account'
+  }))
+
+  const failure = expectFailure(gated, 'ACCOUNT_MISMATCH')
+  assert.equal(failure.error.details?.provider, 'google')
+  assert.equal(failure.error.details?.expectedAccount, 'team@example.com')
+})
+
+test('requireAuth returns true for a passing auth preflight', async () => {
+  const result = await requireAuth({ ok: true, provider: 'google', account: 'team@example.com' })
+  assert.equal(result, true)
+})
+
+test('human auth output renders provider, account context, and next step', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'sync',
+        handler: async () =>
+          accountMismatch('team@example.com', 'personal@example.com', 'Wrong Google account', {
+            provider: 'google',
+            nextStep: 'Run demo auth login --account team@example.com'
+          })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['sync'])
+  expectFailure(result.result, 'ACCOUNT_MISMATCH')
+  assert.match(result.stderr, /Error \[ACCOUNT_MISMATCH\]: Wrong Google account/)
+  assert.match(result.stderr, /Provider: google/)
+  assert.match(result.stderr, /Current account: personal@example.com/)
+  assert.match(result.stderr, /Expected account: team@example.com/)
+  assert.match(result.stderr, /Next step: Run demo auth login --account team@example.com/)
 })
 
 test('human output renders warnings and concise record details', async () => {
