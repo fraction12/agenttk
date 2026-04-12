@@ -25,6 +25,22 @@ export {
   supportsCapability,
   unsupportedCapability
 } from './blocks/adapter.js'
+export {
+  defineProfile,
+  loadConfig,
+  malformedConfig,
+  missingConfig,
+  selectProfile,
+  validateConfig
+} from './blocks/config.js'
+export type {
+  ConfigDiagnosticDetails,
+  ConfigFailureOptions,
+  ConfigLoadInput,
+  ConfigLoadOptions,
+  ConfigProfile,
+  ConfigSource
+} from './blocks/config.js'
 export type {
   AdapterCapability,
   AdapterContract,
@@ -70,5 +86,14 @@ export { asDryRun } from './blocks/dry-run.js'
 export * from './errors/index.js'
 
 export { runTool } from './testing/run-cli.js'
-export { expectFailure, expectOk } from './testing/assertions.js'
+export {
+  expectAdapterFailure,
+  expectAuthFailure,
+  expectConfigFailure,
+  expectDryRun,
+  expectFailure,
+  expectLookupFailure,
+  expectOk
+} from './testing/assertions.js'
+export { authFailureFixture, lookupCandidatesFixture } from './testing/fixtures.js'
 export { fakeAdapter } from './testing/fake-adapter.js'

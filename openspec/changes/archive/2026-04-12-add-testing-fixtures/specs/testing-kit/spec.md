@@ -1,6 +1,6 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement: Lightweight testing kit
+### Requirement: Rich primitive-aware testing helpers
 The system SHALL provide lightweight testing helpers for AgentTK-based CLIs.
 
 #### Scenario: Framework primitives have matching test helpers

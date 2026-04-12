@@ -12,11 +12,13 @@ All notable changes to this project will be documented in this file.
 - auth preflight helper for provider-backed commands
 - lookup-resolution helpers for id-or-query flows, not-found outcomes, and ambiguous matches
 - adapter contract helpers for capability checks and normalized adapter failures
+- config convention helpers for env/profile loading and structured config diagnostics
+- richer testing helpers for auth, lookup, adapter, config, and dry-run assertions
 
 ### Changed
 - command and tool metadata now support descriptions, aliases, usage, and examples
-- human failure output can now render structured auth guidance details, adapter failure metadata, and lookup candidate summaries
-- README examples now show help-oriented command metadata, auth preflight usage, adapter contract patterns, and lookup resolution patterns
+- human failure output can now render structured auth guidance details, adapter failure metadata, config diagnostics, and lookup candidate summaries
+- README examples now show help-oriented command metadata, auth preflight usage, adapter contract patterns, config conventions, testing helpers, and lookup resolution patterns
 
 ## [0.1.3] - 2026-04-11
 

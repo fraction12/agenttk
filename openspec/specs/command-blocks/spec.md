@@ -6,14 +6,9 @@ TBD - created by archiving change add-agenttk-v0. Update Purpose after archive.
 ### Requirement: Validation helpers
 The system SHALL provide reusable validation helpers for command inputs.
 
-#### Scenario: Valid input passes through
-- **WHEN** a command validates input against a declared schema and the input is valid
-- **THEN** the helper returns the typed parsed value
-
-#### Scenario: Invalid input returns a structured validation failure
-- **WHEN** a command validates input against a declared schema and the input is invalid
-- **THEN** the helper returns a structured failure with code `VALIDATION_ERROR`
-- **AND** the failure message describes the validation problem without throwing an uncaught exception into the caller
+#### Scenario: Config diagnostics reuse structured validation style
+- **WHEN** a downstream tool validates environment or config inputs before command execution
+- **THEN** AgentTK can return a structured failure with actionable guidance using the same predictable envelope style as other validation helpers
 
 ### Requirement: Corrective guidance in validation failures
 The system SHALL support validation failures that include corrective guidance.

@@ -10,12 +10,26 @@ function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): st
   const expectedAccount = typeof details.expectedAccount === 'string' ? details.expectedAccount : undefined
   const nextStep = typeof details.nextStep === 'string' ? details.nextStep : undefined
   const query = typeof details.query === 'string' ? details.query : undefined
+  const reason = typeof details.reason === 'string' ? details.reason : undefined
+  const source = typeof details.source === 'string' ? details.source : undefined
+  const key = typeof details.key === 'string' ? details.key : undefined
+  const profile = typeof details.profile === 'string' ? details.profile : undefined
+  const account = typeof details.account === 'string' ? details.account : undefined
+  const expected = typeof details.expected === 'string' ? details.expected : undefined
   const category = typeof details.category === 'string' ? details.category : undefined
   const operation = typeof details.operation === 'string' ? details.operation : undefined
   const capability = typeof details.capability === 'string' ? details.capability : undefined
   const retryable = typeof details.retryable === 'boolean' ? details.retryable : undefined
   const causeCode = typeof details.causeCode === 'string' ? details.causeCode : undefined
+  const issues = Array.isArray(details.issues) ? details.issues : undefined
   const candidates = Array.isArray(details.candidates) ? details.candidates : undefined
+
+  if (source) lines.push(`Source: ${source}`)
+  if (key) lines.push(`Key: ${key}`)
+  if (profile) lines.push(`Profile: ${profile}`)
+  if (account) lines.push(`Account: ${account}`)
+  if (reason) lines.push(`Reason: ${reason}`)
+  if (expected) lines.push(`Expected: ${expected}`)
 
   if (provider) lines.push(`Provider: ${provider}`)
   if (currentAccount) lines.push(`Current account: ${currentAccount}`)
@@ -26,6 +40,13 @@ function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): st
   if (retryable !== undefined) lines.push(`Retryable: ${retryable ? 'yes' : 'no'}`)
   if (causeCode) lines.push(`Cause code: ${causeCode}`)
   if (query) lines.push(`Query: ${query}`)
+  if (issues?.length) {
+    lines.push('Issues:')
+    for (const issue of issues) {
+      if (typeof issue !== 'string') continue
+      lines.push(`- ${issue}`)
+    }
+  }
   if (candidates?.length) {
     lines.push('Candidates:')
     for (const candidate of candidates) {
