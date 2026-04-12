@@ -19,6 +19,20 @@ export type {
 
 export { renderResult } from './blocks/output.js'
 export {
+  adapterFailure,
+  defineAdapter,
+  requireCapability,
+  supportsCapability,
+  unsupportedCapability
+} from './blocks/adapter.js'
+export type {
+  AdapterCapability,
+  AdapterContract,
+  AdapterFailureCategory,
+  AdapterFailureDetails,
+  AdapterFailureOptions
+} from './blocks/adapter.js'
+export {
   accountMismatch,
   authInvalid,
   authRequired,

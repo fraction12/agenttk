@@ -5,7 +5,9 @@ export const ErrorCodes = {
   AuthInvalid: 'AUTH_INVALID',
   AccountMismatch: 'ACCOUNT_MISMATCH',
   NotFound: 'NOT_FOUND',
-  AmbiguousMatch: 'AMBIGUOUS_MATCH'
+  AmbiguousMatch: 'AMBIGUOUS_MATCH',
+  AdapterError: 'ADAPTER_ERROR',
+  UnsupportedCapability: 'UNSUPPORTED_CAPABILITY'
 } as const
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
