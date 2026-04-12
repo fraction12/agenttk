@@ -8,26 +8,34 @@ AgentTK is a small TypeScript toolkit for building deterministic, agent-friendly
 It is a framework for agent-authored CLIs, not a built-in CLI generator.
 
 It gives you a clean core for tools that need:
+- deterministic command dispatch and built-in help
 - structured success and failure envelopes
 - JSON-first output for agents
 - concise human output for operators
-- validation helpers with corrective guidance
+- reusable auth, lookup, adapter, and config patterns
 - dry-run semantics for mutation commands
 - lightweight test helpers for CLI behavior
 
 ## What it is
 
-AgentTK is not a giant framework. It is a narrow toolkit for building reliable CLIs with a stable machine-facing contract.
+AgentTK is a narrow toolkit for building reliable CLIs with a stable machine-facing contract.
+
+It is designed for a workflow like this:
+1. an agent reads a skill, API, or integration contract
+2. the agent writes the actual CLI code
+3. AgentTK supplies the reusable plumbing so the tool does not have to reinvent it
 
 Use it when you want:
-- predictable command dispatch
+- predictable command dispatch with alias and help support
 - machine-readable results without string parsing
 - simple human output layered on top of the same result envelope
+- reusable framework blocks for auth, lookup, config, and adapter contracts
 - small test helpers instead of shell-heavy CLI tests
 
 ## What it is not
 
-v0 intentionally does **not** include:
+AgentTK intentionally does **not** include:
+- a built-in CLI generator
 - plugin systems
 - workflow engines
 - auth doctor flows
@@ -35,6 +43,30 @@ v0 intentionally does **not** include:
 - dynamic runtime loading
 - provider SDK wrappers
 - domain-specific adapters
+
+## Product boundary
+
+### AgentTK owns
+- runtime and command structure
+- help metadata and rendering
+- result envelopes
+- validation and corrective guidance
+- dry-run semantics
+- auth, lookup, adapter, and config primitives
+- test helpers
+
+### Your agent owns
+- reading the skill or API contract
+- deciding the command surface
+- writing the actual tool code
+- composing the AgentTK primitives correctly
+
+### The downstream tool repo owns
+- provider integrations
+- business rules
+- safety constraints
+- domain quirks
+- live operational behavior
 
 ## Install
 
@@ -114,42 +146,50 @@ const tool = createTool({
 
 ## API
 
-Core:
+### Core runtime
 - `createTool`
 - `defineCommand`
 - `ok`
 - `fail`
 - `isFailure`
+- `renderResult`
 
-Helpers:
+### Validation and command behavior
 - `validateInput`
 - `validationError`
 - `expectedPayloadShape`
 - `nextStepGuidance`
+- `asDryRun`
+
+### Auth blocks
 - `authRequired`
 - `authInvalid`
 - `accountMismatch`
 - `requireAuth`
+
+### Lookup resolution
+- `notFound`
+- `ambiguousMatch`
+- `resolveById`
+- `resolveByQuery`
+- `resolveOne`
+
+### Adapter contracts
 - `defineAdapter`
 - `supportsCapability`
 - `requireCapability`
 - `adapterFailure`
 - `unsupportedCapability`
+
+### Config conventions
 - `defineProfile`
 - `loadConfig`
 - `validateConfig`
 - `missingConfig`
 - `malformedConfig`
 - `selectProfile`
-- `notFound`
-- `ambiguousMatch`
-- `resolveById`
-- `resolveByQuery`
-- `resolveOne`
-- `renderResult`
-- `asDryRun`
 
-Testing:
+### Testing helpers
 - `runTool`
 - `expectOk`
 - `expectFailure`
@@ -317,11 +357,11 @@ Keep using plain `runTool(...)` tests for command wiring and output mode checks.
 
 ## Examples
 
-- `examples/minimal-cli/`
-- `examples/tasks-cli/`
-- `examples/adapter-cli/`
-- `examples/config-cli/`
-- `examples/testing-fixtures/`
+- `examples/minimal-cli/` - basic runtime, help, and JSON output
+- `examples/tasks-cli/` - validation, dry-run, and command-style mutations
+- `examples/adapter-cli/` - capability checks and normalized adapter failures
+- `examples/config-cli/` - profile selection and config diagnostics
+- `examples/testing-fixtures/` - richer framework-aware test assertions
 
 ```bash
 node examples/minimal-cli/index.mjs hello --json
