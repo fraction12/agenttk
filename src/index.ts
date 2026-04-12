@@ -25,6 +25,22 @@ export {
   supportsCapability,
   unsupportedCapability
 } from './blocks/adapter.js'
+export {
+  defineProfile,
+  loadConfig,
+  malformedConfig,
+  missingConfig,
+  selectProfile,
+  validateConfig
+} from './blocks/config.js'
+export type {
+  ConfigDiagnosticDetails,
+  ConfigFailureOptions,
+  ConfigLoadInput,
+  ConfigLoadOptions,
+  ConfigProfile,
+  ConfigSource
+} from './blocks/config.js'
 export type {
   AdapterCapability,
   AdapterContract,

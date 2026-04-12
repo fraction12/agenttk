@@ -11,9 +11,13 @@ import {
   createTool,
   defineAdapter,
   defineCommand,
+  defineProfile,
   expectFailure,
   expectOk,
   fakeAdapter,
+  loadConfig,
+  malformedConfig,
+  missingConfig,
   nextStepGuidance,
   notFound,
   ok,
@@ -23,8 +27,10 @@ import {
   resolveByQuery,
   resolveOne,
   runTool,
+  selectProfile,
   supportsCapability,
   unsupportedCapability,
+  validateConfig,
   validateInput
 } from '../src/index.js'
 
@@ -435,6 +441,87 @@ test('lookup failures render candidates and next steps in human mode', async () 
   assert.match(result.stderr, /Next step: Run demo pick --id task-1/)
 })
 
+test('config helpers can define and select named profiles', () => {
+  const work = defineProfile('work', { account: 'team@example.com', region: 'us' }, { account: 'team@example.com' })
+  assert.equal(work.name, 'work')
+  assert.equal(work.account, 'team@example.com')
+
+  const selected = selectProfile(
+    {
+      work: work.values,
+      personal: { account: 'me@example.com', region: 'us' }
+    },
+    'work'
+  )
+
+  if ('ok' in selected) throw new Error('expected selected profile values')
+  assert.equal(selected.account, 'team@example.com')
+})
+
+test('loadConfig merges base config, selected profile, and env overrides', () => {
+  const schema = z.object({
+    account: z.string().min(1),
+    region: z.string().min(1),
+    apiBaseUrl: z.string().url()
+  })
+
+  const config = loadConfig(schema, {
+    config: { region: 'eu', apiBaseUrl: 'https://base.example.com' },
+    profiles: {
+      work: { account: 'team@example.com', apiBaseUrl: 'https://work.example.com' }
+    },
+    profile: 'work',
+    env: { region: 'us' }
+  })
+
+  if ('ok' in config && config.ok === false) throw new Error('expected config to load successfully')
+  assert.equal(config.account, 'team@example.com')
+  assert.equal(config.region, 'us')
+  assert.equal(config.apiBaseUrl, 'https://work.example.com')
+})
+
+test('missingConfig and malformed config paths preserve structured diagnostics', () => {
+  const missing = expectFailure(
+    missingConfig('API_BASE_URL', {
+      source: 'env',
+      nextStep: 'Set API_BASE_URL and try again'
+    }),
+    'CONFIG_ERROR'
+  )
+  assert.equal(missing.error.details?.reason, 'missing')
+  assert.equal(missing.error.details?.source, 'env')
+
+  const malformed = expectFailure(
+    malformedConfig('apiBaseUrl: Invalid url', {
+      source: 'merged',
+      expected: '{"apiBaseUrl":"https://api.example.com"}',
+      issues: ['apiBaseUrl: Invalid url']
+    }),
+    'CONFIG_ERROR'
+  )
+  assert.equal(malformed.error.details?.reason, 'malformed')
+  assert.equal(malformed.error.details?.source, 'merged')
+})
+
+test('validateConfig returns CONFIG_ERROR for malformed config', () => {
+  const schema = z.object({
+    account: z.string().min(1),
+    apiBaseUrl: z.string().url()
+  })
+
+  const result = validateConfig(schema, {
+    account: 'team@example.com',
+    apiBaseUrl: 'not-a-url'
+  }, {
+    source: 'merged',
+    nextStep: 'Fix apiBaseUrl and try again'
+  })
+
+  const failure = expectFailure(result, 'CONFIG_ERROR')
+  assert.equal(failure.error.details?.reason, 'malformed')
+  assert.match(failure.error.message, /Invalid url/)
+})
+
 test('adapter failures render normalized details in human mode', async () => {
   const tool = createTool({
     name: 'demo',
@@ -459,6 +546,34 @@ test('adapter failures render normalized details in human mode', async () => {
   assert.match(result.stderr, /Capability: tasks.write/)
   assert.match(result.stderr, /Retryable: no/)
   assert.match(result.stderr, /Next step: Reconnect with write scopes/)
+})
+
+test('config failures render structured diagnostics in human mode', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'config',
+        handler: async () =>
+          missingConfig('API_BASE_URL', {
+            source: 'env',
+            profile: 'work',
+            expected: '{"apiBaseUrl":"https://api.example.com"}',
+            nextStep: 'Set API_BASE_URL or run demo config --profile work'
+          })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['config'])
+  expectFailure(result.result, 'CONFIG_ERROR')
+  assert.match(result.stderr, /Error \[CONFIG_ERROR\]: Missing config: API_BASE_URL/)
+  assert.match(result.stderr, /Source: env/)
+  assert.match(result.stderr, /Key: API_BASE_URL/)
+  assert.match(result.stderr, /Profile: work/)
+  assert.match(result.stderr, /Reason: missing/)
+  assert.match(result.stderr, /Expected: \{"apiBaseUrl":"https:\/\/api.example.com"\}/)
+  assert.match(result.stderr, /Next step: Set API_BASE_URL or run demo config --profile work/)
 })
 
 test('notFound helper preserves structured lookup guidance', () => {

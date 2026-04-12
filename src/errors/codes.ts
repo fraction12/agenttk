@@ -7,7 +7,8 @@ export const ErrorCodes = {
   NotFound: 'NOT_FOUND',
   AmbiguousMatch: 'AMBIGUOUS_MATCH',
   AdapterError: 'ADAPTER_ERROR',
-  UnsupportedCapability: 'UNSUPPORTED_CAPABILITY'
+  UnsupportedCapability: 'UNSUPPORTED_CAPABILITY',
+  ConfigError: 'CONFIG_ERROR'
 } as const
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]

@@ -134,6 +134,12 @@ Helpers:
 - `requireCapability`
 - `adapterFailure`
 - `unsupportedCapability`
+- `defineProfile`
+- `loadConfig`
+- `validateConfig`
+- `missingConfig`
+- `malformedConfig`
+- `selectProfile`
 - `notFound`
 - `ambiguousMatch`
 - `resolveById`
@@ -219,6 +225,34 @@ const tool = createTool({
 
 Provider-specific SDK calls and object models should stay in the downstream repo. AgentTK only owns the contract boundary, capability checks, and normalized failure shapes.
 
+## Config conventions
+
+```ts
+import { createTool, defineCommand, isFailure, loadConfig, ok } from 'agenttk'
+import { z } from 'zod'
+
+const schema = z.object({
+  account: z.string().min(1),
+  apiBaseUrl: z.string().url()
+})
+
+const config = loadConfig(schema, {
+  env: { apiBaseUrl: process.env.API_BASE_URL },
+  profiles: {
+    work: { account: 'team@example.com', apiBaseUrl: 'https://api.example.com' }
+  },
+  profile: 'work'
+}, {
+  expected: '{"account":"team@example.com","apiBaseUrl":"https://api.example.com"}',
+  nextStep: 'Set API_BASE_URL or choose a valid profile'
+})
+
+if (isFailure(config)) return config
+return ok({ type: 'config', record: config })
+```
+
+Load order is predictable: base config, then selected profile, then env overrides. AgentTK stays out of secrets management and provider-specific config policy.
+
 ## Lookup resolution
 
 ```ts
@@ -252,6 +286,7 @@ const tool = createTool({
 - `examples/minimal-cli/`
 - `examples/tasks-cli/`
 - `examples/adapter-cli/`
+- `examples/config-cli/`
 
 ```bash
 node examples/minimal-cli/index.mjs hello --json
@@ -259,6 +294,7 @@ node examples/minimal-cli/index.mjs help
 node examples/tasks-cli/index.mjs add --title "Send estimate" --dry-run --json
 node examples/tasks-cli/index.mjs add
 node examples/adapter-cli/index.mjs status --json
+node examples/config-cli/index.mjs show --profile work
 ```
 
 ## Development
