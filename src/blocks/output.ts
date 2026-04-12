@@ -1,5 +1,23 @@
 import type { CommandContext, CommandResult, HelpRecord } from '../core/types.js'
 
+function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): string[] {
+  const details = result.error.details
+  if (!details || typeof details !== 'object') return []
+
+  const lines: string[] = []
+  const provider = typeof details.provider === 'string' ? details.provider : undefined
+  const currentAccount = typeof details.currentAccount === 'string' ? details.currentAccount : undefined
+  const expectedAccount = typeof details.expectedAccount === 'string' ? details.expectedAccount : undefined
+  const nextStep = typeof details.nextStep === 'string' ? details.nextStep : undefined
+
+  if (provider) lines.push(`Provider: ${provider}`)
+  if (currentAccount) lines.push(`Current account: ${currentAccount}`)
+  if (expectedAccount) lines.push(`Expected account: ${expectedAccount}`)
+  if (nextStep) lines.push(`Next step: ${nextStep}`)
+
+  return lines
+}
+
 function renderHelp(record: HelpRecord): string {
   if (record.kind === 'tool') {
     const lines = [record.name]
@@ -29,7 +47,8 @@ function renderHelp(record: HelpRecord): string {
 
 function renderHuman(result: CommandResult): string {
   if (!result.ok) {
-    return `Error [${result.error.code}]: ${result.error.message}`
+    const lines = [`Error [${result.error.code}]: ${result.error.message}`, ...renderFailureDetails(result)]
+    return lines.join('\n')
   }
 
   if (result.type === 'help' && result.record && typeof result.record === 'object') {

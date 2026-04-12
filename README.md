@@ -124,6 +124,10 @@ Helpers:
 - `validationError`
 - `expectedPayloadShape`
 - `nextStepGuidance`
+- `authRequired`
+- `authInvalid`
+- `accountMismatch`
+- `requireAuth`
 - `renderResult`
 - `asDryRun`
 
@@ -132,6 +136,33 @@ Testing:
 - `expectOk`
 - `expectFailure`
 - `fakeAdapter`
+
+## Auth preflight
+
+```ts
+import { createTool, defineCommand, ok, requireAuth } from 'agenttk'
+
+const tool = createTool({
+  name: 'calendar',
+  commands: [
+    defineCommand({
+      name: 'sync',
+      handler: async () => {
+        const auth = await requireAuth(async () => ({
+          ok: false,
+          code: 'AUTH_REQUIRED',
+          provider: 'google',
+          nextStep: 'Run calendar auth login'
+        }))
+
+        if (auth !== true) return auth
+
+        return ok({ type: 'sync', record: { status: 'started' } })
+      }
+    })
+  ]
+})
+```
 
 ## Examples
 

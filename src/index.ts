@@ -19,6 +19,19 @@ export type {
 
 export { renderResult } from './blocks/output.js'
 export {
+  accountMismatch,
+  authInvalid,
+  authRequired,
+  requireAuth
+} from './blocks/auth.js'
+export type {
+  AuthCheck,
+  AuthCheckFailure,
+  AuthCheckResult,
+  AuthCheckSuccess,
+  AuthFailureDetails
+} from './blocks/auth.js'
+export {
   expectedPayloadShape,
   nextStepGuidance,
   validateInput,
