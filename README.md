@@ -5,6 +5,7 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 AgentTK is a small TypeScript toolkit for building deterministic, agent-friendly CLIs.
+It is a framework for agent-authored CLIs, not a built-in CLI generator.
 
 It gives you a clean core for tools that need:
 - structured success and failure envelopes
