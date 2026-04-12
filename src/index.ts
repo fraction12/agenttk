@@ -6,10 +6,13 @@ export type {
   CommandDefinition,
   CommandFailure,
   CommandHandler,
+  CommandHelpRecord,
   CommandInvocation,
   CommandResult,
   CommandSuccess,
+  HelpRecord,
   ToolDefinition,
+  ToolHelpRecord,
   ToolIO,
   ToolRuntime
 } from './core/types.js'

@@ -1,3 +1,26 @@
+export type CommandHelpRecord = {
+  kind: 'command'
+  toolName: string
+  name: string
+  description?: string
+  aliases?: string[]
+  usage?: string
+  examples?: string[]
+}
+
+export type ToolHelpRecord = {
+  kind: 'tool'
+  name: string
+  description?: string
+  commands: Array<{
+    name: string
+    description?: string
+    aliases?: string[]
+  }>
+}
+
+export type HelpRecord = ToolHelpRecord | CommandHelpRecord
+
 export type CommandSuccess<TRecord = unknown> = {
   ok: true
   type: string
@@ -41,11 +64,15 @@ export type CommandHandler<TInput = unknown, TRecord = unknown> = (
 export type CommandDefinition<TInput = unknown, TRecord = unknown> = {
   name: string
   description?: string
+  aliases?: string[]
+  usage?: string
+  examples?: string[]
   handler: CommandHandler<TInput, TRecord>
 }
 
 export type ToolDefinition = {
   name: string
+  description?: string
   commands: CommandDefinition[]
 }
 

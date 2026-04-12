@@ -32,7 +32,97 @@ test('tool runs a simple command and emits json', async () => {
   assert.match(result.stdout, /"type": "greeting"/)
 })
 
-test('missing command returns UNKNOWN_COMMAND failure', async () => {
+test('tool help renders in human mode', async () => {
+  const tool = createTool({
+    name: 'demo',
+    description: 'Example CLI',
+    commands: [
+      defineCommand({
+        name: 'hello',
+        description: 'Say hello',
+        aliases: ['hi'],
+        handler: async () => ok({ type: 'greeting', record: { message: 'hello' } })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['help'])
+  const success = expectOk(result.result)
+  assert.equal(success.type, 'help')
+  assert.match(result.stdout, /^demo/m)
+  assert.match(result.stdout, /Example CLI/)
+  assert.match(result.stdout, /Commands:/)
+  assert.match(result.stdout, /hello \(aliases: hi\) - Say hello/)
+})
+
+test('tool help renders in json mode', async () => {
+  const tool = createTool({
+    name: 'demo',
+    description: 'Example CLI',
+    commands: [
+      defineCommand({
+        name: 'hello',
+        description: 'Say hello',
+        handler: async () => ok({ type: 'greeting', record: { message: 'hello' } })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['--help', '--json'])
+  const success = expectOk(result.result)
+  assert.equal(success.type, 'help')
+  assert.match(result.stdout, /"kind": "tool"/)
+  assert.match(result.stdout, /"name": "demo"/)
+  assert.match(result.stdout, /"description": "Say hello"/)
+})
+
+test('command help renders without executing the handler', async () => {
+  let called = false
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'hello',
+        description: 'Say hello',
+        usage: 'demo hello [name]',
+        examples: ['demo hello', 'demo hello Dushyant'],
+        handler: async () => {
+          called = true
+          return ok({ type: 'greeting', record: { message: 'hello' } })
+        }
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['hello', '--help'])
+  const success = expectOk(result.result)
+  assert.equal(success.type, 'help')
+  assert.equal(called, false)
+  assert.match(result.stdout, /demo hello/)
+  assert.match(result.stdout, /Usage: demo hello \[name\]/)
+  assert.match(result.stdout, /Examples:/)
+  assert.match(result.stdout, /demo hello Dushyant/)
+})
+
+test('aliases dispatch to the canonical command', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'hello',
+        aliases: ['hi'],
+        handler: async ({ rawArgs }) => ok({ type: 'greeting', record: { rawArgs } })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['hi', 'there', '--json'])
+  const success = expectOk(result.result)
+  assert.equal(success.type, 'greeting')
+  assert.match(result.stdout, /"there"/)
+})
+
+test('missing command renders tool help', async () => {
   const definition = {
     name: 'demo',
     commands: [
@@ -44,9 +134,10 @@ test('missing command returns UNKNOWN_COMMAND failure', async () => {
   }
 
   const result = await runTool(definition, [])
-  const failure = expectFailure(result.result, 'UNKNOWN_COMMAND')
-  assert.match(failure.error.message, /No command provided for demo/)
-  assert.match(result.stderr, /No command provided for demo/)
+  const success = expectOk(result.result)
+  assert.equal(success.type, 'help')
+  assert.match(result.stdout, /^demo/m)
+  assert.equal(result.stderr, '')
 })
 
 test('unknown command returns UNKNOWN_COMMAND failure', async () => {

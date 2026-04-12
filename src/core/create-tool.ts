@@ -1,10 +1,22 @@
 import { renderResult } from '../blocks/output.js'
-import { fail } from './result.js'
-import type { CommandContext, CommandDefinition, ToolDefinition, ToolIO, ToolRuntime } from './types.js'
+import { fail, ok } from './result.js'
+import type {
+  CommandContext,
+  CommandDefinition,
+  CommandHelpRecord,
+  ToolDefinition,
+  ToolHelpRecord,
+  ToolIO,
+  ToolRuntime
+} from './types.js'
+
+function isHelpFlag(value?: string) {
+  return value === 'help' || value === '--help' || value === '-h'
+}
 
 function findCommand(commands: CommandDefinition[], name?: string) {
   if (!name) return undefined
-  return commands.find((command) => command.name === name)
+  return commands.find((command) => command.name === name || command.aliases?.includes(name))
 }
 
 function createContext(definition: ToolDefinition, json: boolean, io?: ToolIO): CommandContext {
@@ -27,6 +39,35 @@ function unknownCommandResult(definition: ToolDefinition, commandName?: string) 
   })
 }
 
+function toolHelpResult(definition: ToolDefinition) {
+  const record: ToolHelpRecord = {
+    kind: 'tool',
+    name: definition.name,
+    description: definition.description,
+    commands: definition.commands.map((command) => ({
+      name: command.name,
+      description: command.description,
+      aliases: command.aliases
+    }))
+  }
+
+  return ok({ type: 'help', record })
+}
+
+function commandHelpResult(definition: ToolDefinition, command: CommandDefinition) {
+  const record: CommandHelpRecord = {
+    kind: 'command',
+    toolName: definition.name,
+    name: command.name,
+    description: command.description,
+    aliases: command.aliases,
+    usage: command.usage,
+    examples: command.examples
+  }
+
+  return ok({ type: 'help', record })
+}
+
 export function createTool(definition: ToolDefinition): ToolRuntime {
   return {
     ...definition,
@@ -34,11 +75,24 @@ export function createTool(definition: ToolDefinition): ToolRuntime {
       const json = argv.includes('--json')
       const filteredArgs = argv.filter((arg) => arg !== '--json')
       const [commandName, ...rawArgs] = filteredArgs
-      const command = findCommand(definition.commands, commandName)
       const ctx = createContext(definition, json, io)
+
+      if (!commandName || isHelpFlag(commandName)) {
+        const result = toolHelpResult(definition)
+        renderResult(result, ctx)
+        return result
+      }
+
+      const command = findCommand(definition.commands, commandName)
 
       if (!command) {
         const result = unknownCommandResult(definition, commandName)
+        renderResult(result, ctx)
+        return result
+      }
+
+      if (rawArgs.some((arg) => isHelpFlag(arg))) {
+        const result = commandHelpResult(definition, command)
         renderResult(result, ctx)
         return result
       }

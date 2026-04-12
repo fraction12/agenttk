@@ -53,9 +53,14 @@ import { createTool, defineCommand, ok } from 'agenttk'
 
 const tool = createTool({
   name: 'demo',
+  description: 'Example CLI built with AgentTK',
   commands: [
     defineCommand({
       name: 'hello',
+      description: 'Say hello',
+      aliases: ['hi'],
+      usage: 'demo hello [name]',
+      examples: ['demo hello', 'demo hi Dushyant'],
       handler: async ({ rawArgs }) =>
         ok({
           type: 'greeting',
@@ -135,6 +140,7 @@ Testing:
 
 ```bash
 node examples/minimal-cli/index.mjs hello --json
+node examples/minimal-cli/index.mjs help
 node examples/tasks-cli/index.mjs add --title "Send estimate" --dry-run --json
 node examples/tasks-cli/index.mjs add
 ```

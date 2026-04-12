@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- built-in tool help and command help
+- alias-aware command dispatch
+- structured help payloads in JSON mode
+
+### Changed
+- command and tool metadata now support descriptions, aliases, usage, and examples
+- README examples now show help-oriented command metadata
+
 ## [0.1.3] - 2026-04-11
 
 ### Added

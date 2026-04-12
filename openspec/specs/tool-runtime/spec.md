@@ -23,6 +23,11 @@ The system SHALL dispatch execution by command name from CLI arguments.
 - **THEN** the matching command handler is invoked
 - **AND** the remaining arguments are passed to the command as raw arguments
 
+#### Scenario: Alias command executes
+- **WHEN** the tool is run with a registered command alias
+- **THEN** the matching canonical command handler is invoked
+- **AND** the remaining arguments are passed to the command as raw arguments
+
 #### Scenario: Unknown command fails predictably
 - **WHEN** the tool is run with a command name that is not registered
 - **THEN** the runtime returns a structured failure with code `UNKNOWN_COMMAND`

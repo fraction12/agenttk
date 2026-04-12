@@ -1,8 +1,39 @@
-import type { CommandContext, CommandResult } from '../core/types.js'
+import type { CommandContext, CommandResult, HelpRecord } from '../core/types.js'
+
+function renderHelp(record: HelpRecord): string {
+  if (record.kind === 'tool') {
+    const lines = [record.name]
+    if (record.description) lines.push(record.description)
+    lines.push('Commands:')
+
+    for (const command of record.commands) {
+      const aliasText = command.aliases?.length ? ` (aliases: ${command.aliases.join(', ')})` : ''
+      const description = command.description ? ` - ${command.description}` : ''
+      lines.push(`- ${command.name}${aliasText}${description}`)
+    }
+
+    return lines.join('\n')
+  }
+
+  const lines = [`${record.toolName} ${record.name}`]
+  if (record.description) lines.push(record.description)
+  if (record.aliases?.length) lines.push(`Aliases: ${record.aliases.join(', ')}`)
+  if (record.usage) lines.push(`Usage: ${record.usage}`)
+  if (record.examples?.length) {
+    lines.push('Examples:')
+    for (const example of record.examples) lines.push(`- ${example}`)
+  }
+
+  return lines.join('\n')
+}
 
 function renderHuman(result: CommandResult): string {
   if (!result.ok) {
     return `Error [${result.error.code}]: ${result.error.message}`
+  }
+
+  if (result.type === 'help' && result.record && typeof result.record === 'object') {
+    return renderHelp(result.record as HelpRecord)
   }
 
   const action = result.dryRun ? 'Dry run' : 'Saved'
