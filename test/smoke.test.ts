@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { z } from 'zod'
 import {
   accountMismatch,
+  ambiguousMatch,
   asDryRun,
   authInvalid,
   authRequired,
@@ -12,8 +13,12 @@ import {
   expectOk,
   fakeAdapter,
   nextStepGuidance,
+  notFound,
   ok,
   requireAuth,
+  resolveById,
+  resolveByQuery,
+  resolveOne,
   runTool,
   validateInput
 } from '../src/index.js'
@@ -297,6 +302,94 @@ test('human auth output renders provider, account context, and next step', async
   assert.match(result.stderr, /Current account: personal@example.com/)
   assert.match(result.stderr, /Expected account: team@example.com/)
   assert.match(result.stderr, /Next step: Run demo auth login --account team@example.com/)
+})
+
+test('lookup helpers resolve by id and query', async () => {
+  const invoice = { id: 'task-1', label: 'Invoice follow-up', description: 'Daily Focus' }
+
+  const byId = resolveById(invoice)
+  assert.equal(byId.ok, true)
+  if (byId.ok) {
+    assert.equal(byId.strategy, 'id')
+    assert.equal(byId.candidate.id, 'task-1')
+  }
+
+  const byQuery = resolveByQuery(invoice)
+  assert.equal(byQuery.ok, true)
+  if (byQuery.ok) {
+    assert.equal(byQuery.strategy, 'query')
+    assert.equal(byQuery.candidate.label, 'Invoice follow-up')
+  }
+})
+
+test('resolveOne returns NOT_FOUND with guidance for misses', () => {
+  const result = resolveOne({ query: 'invoice' }, [], {
+    nextStep: 'Run demo list --json'
+  })
+
+  const failure = expectFailure(result, 'NOT_FOUND')
+  assert.equal(failure.error.details?.query, 'invoice')
+  assert.equal(failure.error.details?.nextStep, 'Run demo list --json')
+})
+
+test('resolveOne returns AMBIGUOUS_MATCH with compact candidates', () => {
+  const result = resolveOne(
+    { query: 'invoice' },
+    [
+      { id: 'task-1', label: 'Invoice follow-up', description: 'Daily Focus' },
+      { id: 'task-2', label: 'Invoice draft', description: 'Backlog' }
+    ],
+    { nextStep: 'Retry with an explicit id' }
+  )
+
+  const failure = expectFailure(result, 'AMBIGUOUS_MATCH')
+  const candidates = failure.error.details?.candidates as Array<{ id: string; label: string }>
+  assert.equal(candidates.length, 2)
+  assert.equal(candidates[0]?.id, 'task-1')
+  assert.equal(failure.error.details?.nextStep, 'Retry with an explicit id')
+})
+
+test('lookup failures render candidates and next steps in human mode', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'pick',
+        handler: async () =>
+          ambiguousMatch(
+            [
+              { id: 'task-1', label: 'Invoice follow-up', description: 'Daily Focus' },
+              { id: 'task-2', label: 'Invoice draft', description: 'Backlog' }
+            ],
+            'Multiple tasks matched',
+            {
+              query: 'invoice',
+              nextStep: 'Run demo pick --id task-1'
+            }
+          )
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['pick'])
+  expectFailure(result.result, 'AMBIGUOUS_MATCH')
+  assert.match(result.stderr, /Error \[AMBIGUOUS_MATCH\]: Multiple tasks matched/)
+  assert.match(result.stderr, /Query: invoice/)
+  assert.match(result.stderr, /Candidates:/)
+  assert.match(result.stderr, /Invoice follow-up \(task-1\) - Daily Focus/)
+  assert.match(result.stderr, /Invoice draft \(task-2\) - Backlog/)
+  assert.match(result.stderr, /Next step: Run demo pick --id task-1/)
+})
+
+test('notFound helper preserves structured lookup guidance', () => {
+  const result = notFound('Task not found', {
+    query: 'invoice',
+    nextStep: 'Run demo list --json'
+  })
+
+  const failure = expectFailure(result, 'NOT_FOUND')
+  assert.equal(failure.error.details?.query, 'invoice')
+  assert.equal(failure.error.details?.nextStep, 'Run demo list --json')
 })
 
 test('human output renders warnings and concise record details', async () => {

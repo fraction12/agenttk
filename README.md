@@ -128,6 +128,11 @@ Helpers:
 - `authInvalid`
 - `accountMismatch`
 - `requireAuth`
+- `notFound`
+- `ambiguousMatch`
+- `resolveById`
+- `resolveByQuery`
+- `resolveOne`
 - `renderResult`
 - `asDryRun`
 
@@ -158,6 +163,34 @@ const tool = createTool({
         if (auth !== true) return auth
 
         return ok({ type: 'sync', record: { status: 'started' } })
+      }
+    })
+  ]
+})
+```
+
+## Lookup resolution
+
+```ts
+import { ambiguousMatch, createTool, defineCommand, notFound, ok, resolveOne } from 'agenttk'
+
+const tool = createTool({
+  name: 'tasks',
+  commands: [
+    defineCommand({
+      name: 'pick',
+      handler: async () => {
+        const matches = [
+          { id: 'task-1', label: 'Invoice follow-up', description: 'Daily Focus' },
+          { id: 'task-2', label: 'Invoice draft', description: 'Backlog' }
+        ]
+
+        const resolved = resolveOne({ query: 'invoice' }, matches, {
+          nextStep: 'Retry with an explicit id'
+        })
+
+        if (!resolved.ok) return resolved
+        return ok({ type: 'task', id: resolved.candidate.id, record: resolved.candidate })
       }
     })
   ]
