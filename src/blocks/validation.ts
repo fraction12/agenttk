@@ -1,9 +1,10 @@
 import { ZodError, type ZodIssue, type ZodSchema } from 'zod'
+import { withRecovery } from '../core/recovery.js'
 import { fail } from '../core/result.js'
 import { ErrorCodes } from '../errors/codes.js'
-import type { CommandFailure } from '../core/types.js'
+import type { CommandFailure, RecoveryMetadata } from '../core/types.js'
 
-type ValidationOptions = {
+type ValidationOptions = RecoveryMetadata & {
   expectedPayload?: string
   nextStep?: string
   prefix?: string
@@ -29,12 +30,19 @@ function withGuidance(message: string, options?: ValidationOptions): string {
 }
 
 export function validationError(message: string, options?: ValidationOptions): CommandFailure {
-  return fail({
-    error: {
-      code: ErrorCodes.Validation,
-      message: withGuidance(message, options)
+  return withRecovery(
+    fail({
+      error: {
+        code: ErrorCodes.Validation,
+        message: withGuidance(message, options)
+      }
+    }),
+    {
+      nextAction: options?.nextAction ?? 'fix_input',
+      classification: options?.classification ?? 'user_action_required',
+      retryable: options?.retryable ?? false
     }
-  })
+  )
 }
 
 export function expectedPayloadShape(expectedPayload: string, message = 'Input is invalid') {

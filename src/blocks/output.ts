@@ -2,9 +2,14 @@ import type { CommandContext, CommandResult, HelpRecord } from '../core/types.js
 
 function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): string[] {
   const details = result.error.details
-  if (!details || typeof details !== 'object') return []
-
   const lines: string[] = []
+
+  if (result.classification) lines.push(`Classification: ${result.classification}`)
+  if (result.retryable !== undefined) lines.push(`Retryable: ${result.retryable ? 'yes' : 'no'}`)
+  if (result.nextAction) lines.push(`Next action: ${result.nextAction}`)
+
+  if (!details || typeof details !== 'object') return lines
+
   const provider = typeof details.provider === 'string' ? details.provider : undefined
   const currentAccount = typeof details.currentAccount === 'string' ? details.currentAccount : undefined
   const expectedAccount = typeof details.expectedAccount === 'string' ? details.expectedAccount : undefined
@@ -37,7 +42,7 @@ function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): st
   if (operation) lines.push(`Operation: ${operation}`)
   if (category) lines.push(`Category: ${category}`)
   if (capability) lines.push(`Capability: ${capability}`)
-  if (retryable !== undefined) lines.push(`Retryable: ${retryable ? 'yes' : 'no'}`)
+  if (retryable !== undefined && result.retryable === undefined) lines.push(`Retryable: ${retryable ? 'yes' : 'no'}`)
   if (causeCode) lines.push(`Cause code: ${causeCode}`)
   if (query) lines.push(`Query: ${query}`)
   if (issues?.length) {
@@ -89,6 +94,14 @@ function renderHelp(record: HelpRecord): string {
   return lines.join('\n')
 }
 
+function renderSuccessDetails(result: Extract<CommandResult, { ok: true }>): string[] {
+  const lines: string[] = []
+  if (result.classification) lines.push(`Classification: ${result.classification}`)
+  if (result.retryable !== undefined) lines.push(`Retryable: ${result.retryable ? 'yes' : 'no'}`)
+  if (result.nextAction) lines.push(`Next action: ${result.nextAction}`)
+  return lines
+}
+
 function renderHuman(result: CommandResult): string {
   if (!result.ok) {
     const lines = [`Error [${result.error.code}]: ${result.error.message}`, ...renderFailureDetails(result)]
@@ -103,6 +116,10 @@ function renderHuman(result: CommandResult): string {
   const lines = [`${action} ${result.type}`]
   if (result.id) lines.push(`ID: ${result.id}`)
   if (result.destination) lines.push(`Destination: ${result.destination}`)
+
+  for (const detail of renderSuccessDetails(result)) {
+    lines.push(detail)
+  }
 
   if (result.record && typeof result.record === 'object' && !Array.isArray(result.record)) {
     for (const [key, value] of Object.entries(result.record)) {

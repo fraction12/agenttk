@@ -1,6 +1,7 @@
+import { withRecovery } from '../core/recovery.js'
 import { fail } from '../core/result.js'
 import { ErrorCodes } from '../errors/codes.js'
-import type { CommandFailure } from '../core/types.js'
+import type { CommandFailure, RecoveryMetadata } from '../core/types.js'
 
 export type AuthFailureDetails = {
   kind: 'auth'
@@ -16,7 +17,7 @@ export type AuthCheckSuccess = {
   account?: string
 }
 
-export type AuthCheckFailure = {
+export type AuthCheckFailure = RecoveryMetadata & {
   ok: false
   code?: typeof ErrorCodes.AuthRequired | typeof ErrorCodes.AuthInvalid | typeof ErrorCodes.AccountMismatch
   message?: string
@@ -29,22 +30,29 @@ export type AuthCheckFailure = {
 export type AuthCheckResult = AuthCheckSuccess | AuthCheckFailure
 export type AuthCheck = () => Promise<AuthCheckResult> | AuthCheckResult
 
-type AuthFailureOptions = Omit<AuthFailureDetails, 'kind'>
+type AuthFailureOptions = Omit<AuthFailureDetails, 'kind'> & RecoveryMetadata
 
 function authFailure(code: AuthCheckFailure['code'], message: string, options?: AuthFailureOptions): CommandFailure {
-  return fail({
-    error: {
-      code: code ?? ErrorCodes.AuthRequired,
-      message,
-      details: {
-        kind: 'auth',
-        provider: options?.provider,
-        currentAccount: options?.currentAccount,
-        expectedAccount: options?.expectedAccount,
-        nextStep: options?.nextStep
+  return withRecovery(
+    fail({
+      error: {
+        code: code ?? ErrorCodes.AuthRequired,
+        message,
+        details: {
+          kind: 'auth',
+          provider: options?.provider,
+          currentAccount: options?.currentAccount,
+          expectedAccount: options?.expectedAccount,
+          nextStep: options?.nextStep
+        }
       }
+    }),
+    {
+      nextAction: options?.nextAction ?? 'reauth',
+      classification: options?.classification ?? 'user_action_required',
+      retryable: options?.retryable ?? false
     }
-  })
+  )
 }
 
 export function authRequired(message = 'Authentication required', options?: AuthFailureOptions): CommandFailure {

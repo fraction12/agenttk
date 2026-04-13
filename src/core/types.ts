@@ -21,7 +21,26 @@ export type ToolHelpRecord = {
 
 export type HelpRecord = ToolHelpRecord | CommandHelpRecord
 
-export type CommandSuccess<TRecord = unknown> = {
+export type RecoveryAction =
+  | 'retry'
+  | 'reauth'
+  | 'clarify'
+  | 'choose_candidate'
+  | 'fix_input'
+  | 'verify_state'
+  | 'abort'
+  | 'continue'
+  | (string & {})
+
+export type RecoveryClassification = 'transient' | 'permanent' | 'user_action_required' | 'unknown'
+
+export type RecoveryMetadata = {
+  nextAction?: RecoveryAction
+  classification?: RecoveryClassification
+  retryable?: boolean
+}
+
+export type CommandSuccess<TRecord = unknown> = RecoveryMetadata & {
   ok: true
   type: string
   destination?: string
@@ -31,7 +50,7 @@ export type CommandSuccess<TRecord = unknown> = {
   dryRun?: boolean
 }
 
-export type CommandFailure = {
+export type CommandFailure = RecoveryMetadata & {
   ok: false
   type?: string
   error: {

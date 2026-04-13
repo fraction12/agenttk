@@ -19,6 +19,7 @@ import {
   expectFailure,
   expectLookupFailure,
   expectOk,
+  expectRecovery,
   fakeAdapter,
   loadConfig,
   malformedConfig,
@@ -37,6 +38,7 @@ import {
   unsupportedCapability,
   validateConfig,
   validateInput,
+  withRecovery,
   authFailureFixture,
   lookupCandidatesFixture
 } from '../src/index.js'
@@ -246,13 +248,18 @@ test('validation failures can include next-step guidance', async () => {
   }
 })
 
-test('auth required failure preserves guidance in json mode', async () => {
+test('auth required failure preserves guidance and recovery metadata in json mode', async () => {
   const result = authRequired('Google auth required', {
     provider: 'google',
     nextStep: 'Run demo auth login'
   })
 
   const failure = expectFailure(result, 'AUTH_REQUIRED')
+  expectRecovery(failure, {
+    nextAction: 'reauth',
+    classification: 'user_action_required',
+    retryable: false
+  })
   assert.equal(failure.error.details?.provider, 'google')
   assert.equal(failure.error.details?.nextStep, 'Run demo auth login')
 })
@@ -331,6 +338,9 @@ test('human auth output renders provider, account context, and next step', async
   const result = await runTool(tool, ['sync'])
   expectFailure(result.result, 'ACCOUNT_MISMATCH')
   assert.match(result.stderr, /Error \[ACCOUNT_MISMATCH\]: Wrong Google account/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Retryable: no/)
+  assert.match(result.stderr, /Next action: reauth/)
   assert.match(result.stderr, /Provider: google/)
   assert.match(result.stderr, /Current account: personal@example.com/)
   assert.match(result.stderr, /Expected account: team@example.com/)
@@ -361,6 +371,11 @@ test('resolveOne returns NOT_FOUND with guidance for misses', () => {
   })
 
   const failure = expectFailure(result, 'NOT_FOUND')
+  expectRecovery(failure, {
+    nextAction: 'clarify',
+    classification: 'user_action_required',
+    retryable: false
+  })
   assert.equal(failure.error.details?.query, 'invoice')
   assert.equal(failure.error.details?.nextStep, 'Run demo list --json')
 })
@@ -374,6 +389,11 @@ test('resolveOne returns AMBIGUOUS_MATCH with compact candidates', () => {
     code: 'AMBIGUOUS_MATCH',
     query: 'invoice',
     candidateCount: 2
+  })
+  expectRecovery(failure, {
+    nextAction: 'choose_candidate',
+    classification: 'user_action_required',
+    retryable: false
   })
   const candidates = failure.error.details?.candidates as Array<{ id: string; label: string }>
   assert.equal(candidates[0]?.id, 'task-1')
@@ -411,7 +431,7 @@ test('requireCapability returns a structured unsupported capability failure', ()
   assert.equal(failure.error.details?.operation, 'createTask')
 })
 
-test('adapterFailure preserves normalized category and retryability hints', () => {
+test('adapterFailure preserves normalized category and recovery hints', () => {
   const failure = expectFailure(
     adapterFailure('Google API timed out', {
       provider: 'google',
@@ -424,6 +444,11 @@ test('adapterFailure preserves normalized category and retryability hints', () =
     'ADAPTER_ERROR'
   )
 
+  expectRecovery(failure, {
+    nextAction: 'retry',
+    classification: 'transient',
+    retryable: true
+  })
   assert.equal(failure.error.details?.provider, 'google')
   assert.equal(failure.error.details?.operation, 'listTasks')
   assert.equal(failure.error.details?.category, 'timeout')
@@ -456,6 +481,8 @@ test('lookup failures render candidates and next steps in human mode', async () 
   const result = await runTool(tool, ['pick'])
   expectFailure(result.result, 'AMBIGUOUS_MATCH')
   assert.match(result.stderr, /Error \[AMBIGUOUS_MATCH\]: Multiple tasks matched/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Next action: choose_candidate/)
   assert.match(result.stderr, /Query: invoice/)
   assert.match(result.stderr, /Candidates:/)
   assert.match(result.stderr, /Invoice follow-up \(task-1\) - Daily Focus/)
@@ -568,6 +595,8 @@ test('adapter failures render normalized details in human mode', async () => {
   const result = await runTool(tool, ['sync'])
   expectFailure(result.result, 'UNSUPPORTED_CAPABILITY')
   assert.match(result.stderr, /Error \[UNSUPPORTED_CAPABILITY\]: Adapter does not support capability: tasks.write/)
+  assert.match(result.stderr, /Classification: permanent/)
+  assert.match(result.stderr, /Next action: abort/)
   assert.match(result.stderr, /Provider: google/)
   assert.match(result.stderr, /Operation: createTask/)
   assert.match(result.stderr, /Capability: tasks.write/)
@@ -595,6 +624,8 @@ test('config failures render structured diagnostics in human mode', async () => 
   const result = await runTool(tool, ['config'])
   expectFailure(result.result, 'CONFIG_ERROR')
   assert.match(result.stderr, /Error \[CONFIG_ERROR\]: Missing config: API_BASE_URL/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Next action: fix_input/)
   assert.match(result.stderr, /Source: env/)
   assert.match(result.stderr, /Key: API_BASE_URL/)
   assert.match(result.stderr, /Profile: work/)
@@ -610,6 +641,11 @@ test('notFound helper preserves structured lookup guidance', () => {
   })
 
   const failure = expectFailure(result, 'NOT_FOUND')
+  expectRecovery(failure, {
+    nextAction: 'clarify',
+    classification: 'user_action_required',
+    retryable: false
+  })
   assert.equal(failure.error.details?.query, 'invoice')
   assert.equal(failure.error.details?.nextStep, 'Run demo list --json')
 })
@@ -639,6 +675,29 @@ test('human output renders warnings and concise record details', async () => {
   assert.match(result.stdout, /title: Send estimate/)
   assert.match(result.stdout, /due: 2026-04-11/)
   assert.match(result.stdout, /Warnings:/)
+})
+
+test('withRecovery can annotate successful results for follow-up handling', async () => {
+  const result = withRecovery(
+    ok({
+      type: 'task',
+      id: 'task-123',
+      destination: 'google_tasks',
+      record: { title: 'Send estimate' }
+    }),
+    {
+      nextAction: 'verify_state',
+      classification: 'unknown',
+      retryable: false
+    }
+  )
+
+  const success = expectOk(result)
+  expectRecovery(success, {
+    nextAction: 'verify_state',
+    classification: 'unknown',
+    retryable: false
+  })
 })
 
 test('dry-run preserves payload and marks successful results', async () => {

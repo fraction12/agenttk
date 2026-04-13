@@ -1,4 +1,5 @@
 export { createTool } from './core/create-tool.js'
+export { withRecovery } from './core/recovery.js'
 export { defineCommand } from './core/define-command.js'
 export { ok, fail, isFailure } from './core/result.js'
 export type {
@@ -11,6 +12,9 @@ export type {
   CommandResult,
   CommandSuccess,
   HelpRecord,
+  RecoveryAction,
+  RecoveryClassification,
+  RecoveryMetadata,
   ToolDefinition,
   ToolHelpRecord,
   ToolIO,
@@ -93,7 +97,8 @@ export {
   expectDryRun,
   expectFailure,
   expectLookupFailure,
-  expectOk
+  expectOk,
+  expectRecovery
 } from './testing/assertions.js'
 export { authFailureFixture, lookupCandidatesFixture } from './testing/fixtures.js'
 export { fakeAdapter } from './testing/fake-adapter.js'

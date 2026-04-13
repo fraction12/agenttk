@@ -7,6 +7,9 @@ export function authFailureFixture(overrides: Partial<AuthCheckFailure> = {}): A
     code: 'AUTH_REQUIRED',
     provider: 'google',
     nextStep: 'Run demo auth login',
+    nextAction: 'reauth',
+    classification: 'user_action_required',
+    retryable: false,
     ...overrides
   }
 }
