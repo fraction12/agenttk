@@ -1,6 +1,7 @@
+import { withRecovery } from '../core/recovery.js'
 import { fail } from '../core/result.js'
 import { ErrorCodes } from '../errors/codes.js'
-import type { CommandFailure } from '../core/types.js'
+import type { CommandFailure, RecoveryMetadata } from '../core/types.js'
 
 export type CandidateSummary = {
   id: string
@@ -24,7 +25,7 @@ export type ResolutionResult<TCandidate extends CandidateSummary = CandidateSumm
   | ResolutionSuccess<TCandidate>
   | ResolutionFailure
 
-type LookupFailureOptions = {
+type LookupFailureOptions = RecoveryMetadata & {
   nextStep?: string
   query?: string
   candidates?: CandidateSummary[]
@@ -55,17 +56,24 @@ export function resolveByQuery<TCandidate extends CandidateSummary>(candidate: T
 }
 
 export function notFound(message = 'No matching record found', options?: LookupFailureOptions): ResolutionFailure {
-  return fail({
-    error: {
-      code: ErrorCodes.NotFound,
-      message,
-      details: {
-        kind: 'lookup',
-        query: options?.query,
-        nextStep: options?.nextStep
+  return withRecovery(
+    fail({
+      error: {
+        code: ErrorCodes.NotFound,
+        message,
+        details: {
+          kind: 'lookup',
+          query: options?.query,
+          nextStep: options?.nextStep
+        }
       }
+    }),
+    {
+      nextAction: options?.nextAction ?? 'clarify',
+      classification: options?.classification ?? 'user_action_required',
+      retryable: options?.retryable ?? false
     }
-  })
+  )
 }
 
 export function ambiguousMatch(
@@ -73,18 +81,25 @@ export function ambiguousMatch(
   message = 'Multiple matching records found',
   options?: Omit<LookupFailureOptions, 'candidates'>
 ): ResolutionFailure {
-  return fail({
-    error: {
-      code: ErrorCodes.AmbiguousMatch,
-      message,
-      details: {
-        kind: 'lookup',
-        query: options?.query,
-        nextStep: options?.nextStep,
-        candidates: compactCandidates(candidates)
+  return withRecovery(
+    fail({
+      error: {
+        code: ErrorCodes.AmbiguousMatch,
+        message,
+        details: {
+          kind: 'lookup',
+          query: options?.query,
+          nextStep: options?.nextStep,
+          candidates: compactCandidates(candidates)
+        }
       }
+    }),
+    {
+      nextAction: options?.nextAction ?? 'choose_candidate',
+      classification: options?.classification ?? 'user_action_required',
+      retryable: options?.retryable ?? false
     }
-  })
+  )
 }
 
 export function resolveOne<TCandidate extends CandidateSummary>(

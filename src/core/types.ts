@@ -1,3 +1,12 @@
+export type CommandRiskLevel = 'low' | 'medium' | 'high' | 'destructive'
+export type ConfirmationPolicy = 'none' | 'recommended' | 'required'
+
+export type CommandRisk = {
+  level: CommandRiskLevel
+  confirmation?: ConfirmationPolicy
+  reason?: string
+}
+
 export type CommandHelpRecord = {
   kind: 'command'
   toolName: string
@@ -6,6 +15,7 @@ export type CommandHelpRecord = {
   aliases?: string[]
   usage?: string
   examples?: string[]
+  risk?: CommandRisk
 }
 
 export type ToolHelpRecord = {
@@ -16,12 +26,45 @@ export type ToolHelpRecord = {
     name: string
     description?: string
     aliases?: string[]
+    risk?: CommandRisk
   }>
 }
 
 export type HelpRecord = ToolHelpRecord | CommandHelpRecord
 
-export type CommandSuccess<TRecord = unknown> = {
+export type RecoveryAction =
+  | 'retry'
+  | 'reauth'
+  | 'clarify'
+  | 'choose_candidate'
+  | 'fix_input'
+  | 'verify_state'
+  | 'abort'
+  | 'continue'
+  | (string & {})
+
+export type RecoveryClassification = 'transient' | 'permanent' | 'user_action_required' | 'unknown'
+
+export type RecoveryMetadata = {
+  nextAction?: RecoveryAction
+  classification?: RecoveryClassification
+  retryable?: boolean
+}
+
+export type RetrySafety = 'safe' | 'verify_first' | 'do_not_retry'
+export type ReplayRisk = 'none' | 'low' | 'high' | 'unknown'
+export type VerificationStatus = 'verified' | 'unverified' | 'not_applicable' | 'verification_failed'
+
+export type MutationSafetyMetadata = {
+  idempotencyKey?: string
+  retrySafety?: RetrySafety
+  replayRisk?: ReplayRisk
+  partial?: boolean
+  verified?: boolean
+  verificationStatus?: VerificationStatus
+}
+
+export type CommandSuccess<TRecord = unknown> = RecoveryMetadata & MutationSafetyMetadata & {
   ok: true
   type: string
   destination?: string
@@ -31,7 +74,7 @@ export type CommandSuccess<TRecord = unknown> = {
   dryRun?: boolean
 }
 
-export type CommandFailure = {
+export type CommandFailure = RecoveryMetadata & MutationSafetyMetadata & {
   ok: false
   type?: string
   error: {
@@ -68,6 +111,7 @@ export type CommandDefinition<TInput = unknown, TRecord = unknown> = {
   aliases?: string[]
   usage?: string
   examples?: string[]
+  risk?: CommandRisk
   handler: CommandHandler<TInput, TRecord>
 }
 

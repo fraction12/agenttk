@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   accountMismatch,
   adapterFailure,
+  agentSafeCliChecklist,
   ambiguousMatch,
   asDryRun,
   authInvalid,
@@ -18,8 +19,11 @@ import {
   expectDryRun,
   expectFailure,
   expectLookupFailure,
+  expectMutationSafety,
   expectOk,
+  expectRecovery,
   fakeAdapter,
+  getAgentSafeCliChecklist,
   loadConfig,
   malformedConfig,
   missingConfig,
@@ -31,12 +35,19 @@ import {
   resolveById,
   resolveByQuery,
   resolveOne,
+  requireConfirmation,
   runTool,
   selectProfile,
   supportsCapability,
   unsupportedCapability,
   validateConfig,
   validateInput,
+  withMutationSafety,
+  withRecovery,
+  markPartial,
+  markUnverified,
+  markVerified,
+  defineRisk,
   authFailureFixture,
   lookupCandidatesFixture
 } from '../src/index.js'
@@ -129,6 +140,35 @@ test('command help renders without executing the handler', async () => {
   assert.match(result.stdout, /Usage: demo hello \[name\]/)
   assert.match(result.stdout, /Examples:/)
   assert.match(result.stdout, /demo hello Dushyant/)
+})
+
+test('risk metadata appears in help records', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'wipe',
+        description: 'Delete everything in scope',
+        usage: 'demo wipe --confirm',
+        risk: defineRisk({
+          level: 'destructive',
+          confirmation: 'required',
+          reason: 'Deletes all matching records in scope'
+        }),
+        handler: async () => ok({ type: 'wipe', record: { status: 'blocked' } })
+      })
+    ]
+  })
+
+  const commandHelp = await runTool(tool, ['wipe', '--help'])
+  const success = expectOk(commandHelp.result)
+  assert.equal(success.type, 'help')
+  assert.match(commandHelp.stdout, /Risk: destructive/)
+  assert.match(commandHelp.stdout, /Confirmation: required/)
+  assert.match(commandHelp.stdout, /Reason: Deletes all matching records in scope/)
+
+  const toolHelp = await runTool(tool, ['help'])
+  assert.match(toolHelp.stdout, /wipe \[risk: destructive, confirm: required\]/)
 })
 
 test('aliases dispatch to the canonical command', async () => {
@@ -246,13 +286,18 @@ test('validation failures can include next-step guidance', async () => {
   }
 })
 
-test('auth required failure preserves guidance in json mode', async () => {
+test('auth required failure preserves guidance and recovery metadata in json mode', async () => {
   const result = authRequired('Google auth required', {
     provider: 'google',
     nextStep: 'Run demo auth login'
   })
 
   const failure = expectFailure(result, 'AUTH_REQUIRED')
+  expectRecovery(failure, {
+    nextAction: 'reauth',
+    classification: 'user_action_required',
+    retryable: false
+  })
   assert.equal(failure.error.details?.provider, 'google')
   assert.equal(failure.error.details?.nextStep, 'Run demo auth login')
 })
@@ -313,6 +358,25 @@ test('testing fixtures provide reusable auth and lookup defaults', () => {
   assert.equal(candidates[0]?.id, 'task-1')
 })
 
+test('agent-safe checklist exposes the expected review gates', () => {
+  const checklist = getAgentSafeCliChecklist()
+  assert.equal(checklist.length, 6)
+  assert.deepEqual(
+    checklist.map((item) => item.id),
+    [
+      'predictable-failure-envelopes',
+      'machine-usable-recovery',
+      'explicit-write-retry-semantics',
+      'post-mutation-verification',
+      'risk-and-confirmation-posture',
+      'review-grade-test-coverage'
+    ]
+  )
+  assert.equal(agentSafeCliChecklist[0]?.area, 'command-contract')
+  assert.notEqual(checklist[0], agentSafeCliChecklist[0])
+  assert.notEqual(checklist[0]?.checks, agentSafeCliChecklist[0]?.checks)
+})
+
 test('human auth output renders provider, account context, and next step', async () => {
   const tool = createTool({
     name: 'demo',
@@ -331,6 +395,9 @@ test('human auth output renders provider, account context, and next step', async
   const result = await runTool(tool, ['sync'])
   expectFailure(result.result, 'ACCOUNT_MISMATCH')
   assert.match(result.stderr, /Error \[ACCOUNT_MISMATCH\]: Wrong Google account/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Retryable: no/)
+  assert.match(result.stderr, /Next action: reauth/)
   assert.match(result.stderr, /Provider: google/)
   assert.match(result.stderr, /Current account: personal@example.com/)
   assert.match(result.stderr, /Expected account: team@example.com/)
@@ -361,6 +428,11 @@ test('resolveOne returns NOT_FOUND with guidance for misses', () => {
   })
 
   const failure = expectFailure(result, 'NOT_FOUND')
+  expectRecovery(failure, {
+    nextAction: 'clarify',
+    classification: 'user_action_required',
+    retryable: false
+  })
   assert.equal(failure.error.details?.query, 'invoice')
   assert.equal(failure.error.details?.nextStep, 'Run demo list --json')
 })
@@ -375,9 +447,40 @@ test('resolveOne returns AMBIGUOUS_MATCH with compact candidates', () => {
     query: 'invoice',
     candidateCount: 2
   })
+  expectRecovery(failure, {
+    nextAction: 'choose_candidate',
+    classification: 'user_action_required',
+    retryable: false
+  })
   const candidates = failure.error.details?.candidates as Array<{ id: string; label: string }>
   assert.equal(candidates[0]?.id, 'task-1')
   assert.equal(failure.error.details?.nextStep, 'Retry with an explicit id')
+})
+
+test('requireConfirmation blocks risky commands until explicitly confirmed', () => {
+  const risk = defineRisk({
+    level: 'destructive',
+    confirmation: 'required',
+    reason: 'Deletes all matching records in scope'
+  })
+
+  const blocked = requireConfirmation(false, risk, {
+    nextStep: 'Re-run with --confirm if you really mean it'
+  })
+
+  const failure = expectFailure(blocked, 'CONFIRMATION_REQUIRED')
+  expectRecovery(failure, {
+    nextAction: 'confirm',
+    classification: 'user_action_required',
+    retryable: false
+  })
+  assert.equal(failure.error.details?.level, 'destructive')
+  assert.equal(failure.error.details?.confirmation, 'required')
+  assert.equal(failure.error.details?.reason, 'Deletes all matching records in scope')
+  assert.equal(failure.error.details?.nextStep, 'Re-run with --confirm if you really mean it')
+
+  const allowed = requireConfirmation(true, risk)
+  assert.equal(allowed, true)
 })
 
 test('adapter contracts expose stable capability checks', () => {
@@ -411,7 +514,7 @@ test('requireCapability returns a structured unsupported capability failure', ()
   assert.equal(failure.error.details?.operation, 'createTask')
 })
 
-test('adapterFailure preserves normalized category and retryability hints', () => {
+test('adapterFailure preserves normalized category and recovery hints', () => {
   const failure = expectFailure(
     adapterFailure('Google API timed out', {
       provider: 'google',
@@ -424,6 +527,11 @@ test('adapterFailure preserves normalized category and retryability hints', () =
     'ADAPTER_ERROR'
   )
 
+  expectRecovery(failure, {
+    nextAction: 'retry',
+    classification: 'transient',
+    retryable: true
+  })
   assert.equal(failure.error.details?.provider, 'google')
   assert.equal(failure.error.details?.operation, 'listTasks')
   assert.equal(failure.error.details?.category, 'timeout')
@@ -456,6 +564,8 @@ test('lookup failures render candidates and next steps in human mode', async () 
   const result = await runTool(tool, ['pick'])
   expectFailure(result.result, 'AMBIGUOUS_MATCH')
   assert.match(result.stderr, /Error \[AMBIGUOUS_MATCH\]: Multiple tasks matched/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Next action: choose_candidate/)
   assert.match(result.stderr, /Query: invoice/)
   assert.match(result.stderr, /Candidates:/)
   assert.match(result.stderr, /Invoice follow-up \(task-1\) - Daily Focus/)
@@ -568,11 +678,47 @@ test('adapter failures render normalized details in human mode', async () => {
   const result = await runTool(tool, ['sync'])
   expectFailure(result.result, 'UNSUPPORTED_CAPABILITY')
   assert.match(result.stderr, /Error \[UNSUPPORTED_CAPABILITY\]: Adapter does not support capability: tasks.write/)
+  assert.match(result.stderr, /Classification: permanent/)
+  assert.match(result.stderr, /Next action: abort/)
   assert.match(result.stderr, /Provider: google/)
   assert.match(result.stderr, /Operation: createTask/)
   assert.match(result.stderr, /Capability: tasks.write/)
   assert.match(result.stderr, /Retryable: no/)
   assert.match(result.stderr, /Next step: Reconnect with write scopes/)
+})
+
+test('confirmation-required failures render risk details in human mode', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'wipe',
+        risk: defineRisk({
+          level: 'destructive',
+          confirmation: 'required',
+          reason: 'Deletes all matching records in scope'
+        }),
+        handler: async () =>
+          requireConfirmation(false, defineRisk({
+            level: 'destructive',
+            confirmation: 'required',
+            reason: 'Deletes all matching records in scope'
+          }), {
+            nextStep: 'Re-run with --confirm if you really mean it'
+          })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['wipe'])
+  expectFailure(result.result, 'CONFIRMATION_REQUIRED')
+  assert.match(result.stderr, /Error \[CONFIRMATION_REQUIRED\]: Confirmation required before running this command/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Next action: confirm/)
+  assert.match(result.stderr, /Risk: destructive/)
+  assert.match(result.stderr, /Confirmation: required/)
+  assert.match(result.stderr, /Reason: Deletes all matching records in scope/)
+  assert.match(result.stderr, /Next step: Re-run with --confirm if you really mean it/)
 })
 
 test('config failures render structured diagnostics in human mode', async () => {
@@ -595,6 +741,8 @@ test('config failures render structured diagnostics in human mode', async () => 
   const result = await runTool(tool, ['config'])
   expectFailure(result.result, 'CONFIG_ERROR')
   assert.match(result.stderr, /Error \[CONFIG_ERROR\]: Missing config: API_BASE_URL/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Next action: fix_input/)
   assert.match(result.stderr, /Source: env/)
   assert.match(result.stderr, /Key: API_BASE_URL/)
   assert.match(result.stderr, /Profile: work/)
@@ -610,6 +758,11 @@ test('notFound helper preserves structured lookup guidance', () => {
   })
 
   const failure = expectFailure(result, 'NOT_FOUND')
+  expectRecovery(failure, {
+    nextAction: 'clarify',
+    classification: 'user_action_required',
+    retryable: false
+  })
   assert.equal(failure.error.details?.query, 'invoice')
   assert.equal(failure.error.details?.nextStep, 'Run demo list --json')
 })
@@ -639,6 +792,135 @@ test('human output renders warnings and concise record details', async () => {
   assert.match(result.stdout, /title: Send estimate/)
   assert.match(result.stdout, /due: 2026-04-11/)
   assert.match(result.stdout, /Warnings:/)
+})
+
+test('withRecovery can annotate successful results for follow-up handling', async () => {
+  const result = withRecovery(
+    ok({
+      type: 'task',
+      id: 'task-123',
+      destination: 'google_tasks',
+      record: { title: 'Send estimate' }
+    }),
+    {
+      nextAction: 'verify_state',
+      classification: 'unknown',
+      retryable: false
+    }
+  )
+
+  const success = expectOk(result)
+  expectRecovery(success, {
+    nextAction: 'verify_state',
+    classification: 'unknown',
+    retryable: false
+  })
+})
+
+test('withMutationSafety can attach idempotency and retry metadata to a result', async () => {
+  const result = withMutationSafety(
+    ok({
+      type: 'task',
+      id: 'task-123',
+      destination: 'google_tasks',
+      record: { title: 'Send estimate' }
+    }),
+    {
+      idempotencyKey: 'op-123',
+      retrySafety: 'verify_first',
+      replayRisk: 'unknown'
+    }
+  )
+
+  const success = expectOk(result)
+  expectMutationSafety(success, {
+    idempotencyKey: 'op-123',
+    retrySafety: 'verify_first',
+    replayRisk: 'unknown'
+  })
+})
+
+test('markPartial and verification helpers annotate mutation outcomes safely', async () => {
+  const base = ok({
+    type: 'task',
+    id: 'task-123',
+    destination: 'google_tasks',
+    record: { title: 'Send estimate' }
+  })
+
+  const partial = markPartial(base, {
+    retrySafety: 'verify_first',
+    replayRisk: 'high',
+    idempotencyKey: 'op-123'
+  })
+  expectMutationSafety(partial, {
+    partial: true,
+    retrySafety: 'verify_first',
+    replayRisk: 'high',
+    idempotencyKey: 'op-123'
+  })
+
+  const unverified = markUnverified(partial, {
+    status: 'unverified'
+  })
+  expectMutationSafety(unverified, {
+    partial: true,
+    verificationStatus: 'unverified',
+    verified: false
+  })
+  expectRecovery(unverified, {
+    nextAction: 'verify_state'
+  })
+
+  const verified = markVerified(base, {
+    retrySafety: 'safe',
+    replayRisk: 'none',
+    idempotencyKey: 'op-456'
+  })
+  expectMutationSafety(verified, {
+    verified: true,
+    verificationStatus: 'verified',
+    retrySafety: 'safe',
+    replayRisk: 'none',
+    idempotencyKey: 'op-456'
+  })
+})
+
+test('human output renders mutation safety metadata cleanly', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'save',
+        handler: async () =>
+          markUnverified(
+            markPartial(
+              withMutationSafety(
+                ok({
+                  type: 'task',
+                  id: 'task-123',
+                  destination: 'google_tasks',
+                  record: { title: 'Send estimate' }
+                }),
+                {
+                  idempotencyKey: 'op-123',
+                  retrySafety: 'verify_first',
+                  replayRisk: 'high'
+                }
+              )
+            )
+          )
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['save'])
+  assert.match(result.stdout, /Retry safety: verify_first/)
+  assert.match(result.stdout, /Replay risk: high/)
+  assert.match(result.stdout, /Partial: yes/)
+  assert.match(result.stdout, /Verification: unverified/)
+  assert.match(result.stdout, /Idempotency key: op-123/)
+  assert.match(result.stdout, /Next action: verify_state/)
 })
 
 test('dry-run preserves payload and marks successful results', async () => {

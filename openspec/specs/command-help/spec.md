@@ -43,3 +43,10 @@ The system SHALL keep help metadata intentionally small.
 - **THEN** the metadata model supports only a narrow set such as descriptions, aliases, usage, and examples
 - **AND** it does not require a broader plugin or argument-parser architecture
 
+### Requirement: Risk-aware help output
+The system SHALL surface command risk metadata in help output.
+
+#### Scenario: Destructive command shows confirmation posture
+- **WHEN** a command is marked as destructive and confirmation-required
+- **THEN** command help and tool help can surface that posture without downstream tools hand-rolling custom help text
+

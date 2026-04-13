@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict'
-import type { CommandFailure, CommandResult, CommandSuccess } from '../core/types.js'
+import type {
+  CommandFailure,
+  CommandResult,
+  CommandSuccess,
+  RecoveryAction,
+  RecoveryClassification,
+  ReplayRisk,
+  RetrySafety,
+  VerificationStatus
+} from '../core/types.js'
 
 export function expectOk<TRecord = unknown>(result: CommandResult<TRecord>): CommandSuccess<TRecord> {
   assert.equal(result.ok, true)
@@ -19,6 +28,58 @@ export function expectDryRun<TRecord = unknown>(result: CommandResult<TRecord>):
   const success = expectOk(result)
   assert.equal(success.dryRun, true)
   return success
+}
+
+export function expectRecovery(
+  result: CommandResult,
+  options?: {
+    nextAction?: RecoveryAction
+    classification?: RecoveryClassification
+    retryable?: boolean
+  }
+): CommandFailure | CommandSuccess {
+  if (options?.nextAction !== undefined) {
+    assert.equal(result.nextAction, options.nextAction)
+  }
+  if (options?.classification !== undefined) {
+    assert.equal(result.classification, options.classification)
+  }
+  if (options?.retryable !== undefined) {
+    assert.equal(result.retryable, options.retryable)
+  }
+  return result
+}
+
+export function expectMutationSafety(
+  result: CommandResult,
+  options?: {
+    retrySafety?: RetrySafety
+    replayRisk?: ReplayRisk
+    partial?: boolean
+    verified?: boolean
+    verificationStatus?: VerificationStatus
+    idempotencyKey?: string
+  }
+): CommandFailure | CommandSuccess {
+  if (options?.retrySafety !== undefined) {
+    assert.equal(result.retrySafety, options.retrySafety)
+  }
+  if (options?.replayRisk !== undefined) {
+    assert.equal(result.replayRisk, options.replayRisk)
+  }
+  if (options?.partial !== undefined) {
+    assert.equal(result.partial, options.partial)
+  }
+  if (options?.verified !== undefined) {
+    assert.equal(result.verified, options.verified)
+  }
+  if (options?.verificationStatus !== undefined) {
+    assert.equal(result.verificationStatus, options.verificationStatus)
+  }
+  if (options?.idempotencyKey !== undefined) {
+    assert.equal(result.idempotencyKey, options.idempotencyKey)
+  }
+  return result
 }
 
 export function expectAuthFailure(

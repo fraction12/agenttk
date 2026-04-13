@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- recovery semantics helpers and metadata for machine-usable next actions
+- mutation safety helpers for retry posture, replay risk, and verification status
+- risk metadata and confirmation helpers for dangerous commands
+- an exported agent-safe CLI checklist for downstream reviews and release gates
+
+### Changed
+- tool and command help can surface command risk posture
+- human output now renders recovery, mutation safety, and confirmation details more clearly
+- testing helpers now cover recovery, mutation safety, and the exported checklist surface
+
 ## [0.1.4] - 2026-04-12
 
 ### Added

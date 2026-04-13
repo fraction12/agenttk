@@ -1,7 +1,8 @@
 import { ZodError, type ZodSchema } from 'zod'
+import { withRecovery } from '../core/recovery.js'
 import { fail } from '../core/result.js'
 import { ErrorCodes } from '../errors/codes.js'
-import type { CommandFailure } from '../core/types.js'
+import type { CommandFailure, RecoveryMetadata } from '../core/types.js'
 
 export type ConfigSource = 'env' | 'config' | 'profile' | 'merged'
 
@@ -17,7 +18,7 @@ export type ConfigDiagnosticDetails = {
   nextStep?: string
 }
 
-export type ConfigFailureOptions = Omit<ConfigDiagnosticDetails, 'kind' | 'reason'>
+export type ConfigFailureOptions = Omit<ConfigDiagnosticDetails, 'kind' | 'reason'> & RecoveryMetadata
 
 export type ConfigProfile<TConfig extends Record<string, unknown> = Record<string, unknown>> = {
   name: string
@@ -43,23 +44,30 @@ function configFailure(
   message: string,
   options?: ConfigFailureOptions
 ): CommandFailure {
-  return fail({
-    error: {
-      code: ErrorCodes.ConfigError,
-      message,
-      details: {
-        kind: 'config',
-        reason,
-        source: options?.source,
-        key: options?.key,
-        profile: options?.profile,
-        account: options?.account,
-        expected: options?.expected,
-        issues: options?.issues,
-        nextStep: options?.nextStep
+  return withRecovery(
+    fail({
+      error: {
+        code: ErrorCodes.ConfigError,
+        message,
+        details: {
+          kind: 'config',
+          reason,
+          source: options?.source,
+          key: options?.key,
+          profile: options?.profile,
+          account: options?.account,
+          expected: options?.expected,
+          issues: options?.issues,
+          nextStep: options?.nextStep
+        }
       }
+    }),
+    {
+      nextAction: options?.nextAction ?? 'fix_input',
+      classification: options?.classification ?? 'user_action_required',
+      retryable: options?.retryable ?? false
     }
-  })
+  )
 }
 
 export function missingConfig(key: string, options?: ConfigFailureOptions): CommandFailure {

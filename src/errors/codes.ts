@@ -8,7 +8,8 @@ export const ErrorCodes = {
   AmbiguousMatch: 'AMBIGUOUS_MATCH',
   AdapterError: 'ADAPTER_ERROR',
   UnsupportedCapability: 'UNSUPPORTED_CAPABILITY',
-  ConfigError: 'CONFIG_ERROR'
+  ConfigError: 'CONFIG_ERROR',
+  ConfirmationRequired: 'CONFIRMATION_REQUIRED'
 } as const
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]
