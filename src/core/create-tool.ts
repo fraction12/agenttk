@@ -47,7 +47,8 @@ function toolHelpResult(definition: ToolDefinition) {
     commands: definition.commands.map((command) => ({
       name: command.name,
       description: command.description,
-      aliases: command.aliases
+      aliases: command.aliases,
+      risk: command.risk
     }))
   }
 
@@ -62,7 +63,8 @@ function commandHelpResult(definition: ToolDefinition, command: CommandDefinitio
     description: command.description,
     aliases: command.aliases,
     usage: command.usage,
-    examples: command.examples
+    examples: command.examples,
+    risk: command.risk
   }
 
   return ok({ type: 'help', record })

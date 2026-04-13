@@ -1,3 +1,12 @@
+export type CommandRiskLevel = 'low' | 'medium' | 'high' | 'destructive'
+export type ConfirmationPolicy = 'none' | 'recommended' | 'required'
+
+export type CommandRisk = {
+  level: CommandRiskLevel
+  confirmation?: ConfirmationPolicy
+  reason?: string
+}
+
 export type CommandHelpRecord = {
   kind: 'command'
   toolName: string
@@ -6,6 +15,7 @@ export type CommandHelpRecord = {
   aliases?: string[]
   usage?: string
   examples?: string[]
+  risk?: CommandRisk
 }
 
 export type ToolHelpRecord = {
@@ -16,6 +26,7 @@ export type ToolHelpRecord = {
     name: string
     description?: string
     aliases?: string[]
+    risk?: CommandRisk
   }>
 }
 
@@ -100,6 +111,7 @@ export type CommandDefinition<TInput = unknown, TRecord = unknown> = {
   aliases?: string[]
   usage?: string
   examples?: string[]
+  risk?: CommandRisk
   handler: CommandHandler<TInput, TRecord>
 }
 

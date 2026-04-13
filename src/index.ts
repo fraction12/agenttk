@@ -11,7 +11,10 @@ export type {
   CommandHelpRecord,
   CommandInvocation,
   CommandResult,
+  CommandRisk,
+  CommandRiskLevel,
   CommandSuccess,
+  ConfirmationPolicy,
   HelpRecord,
   MutationSafetyMetadata,
   RecoveryAction,
@@ -77,6 +80,12 @@ export {
   resolveByQuery,
   resolveOne
 } from './blocks/lookup.js'
+export {
+  confirmationRequired,
+  defineRisk,
+  requireConfirmation
+} from './blocks/risk.js'
+export type { RiskFailureDetails } from './blocks/risk.js'
 export type {
   CandidateSummary,
   ResolutionFailure,
@@ -107,4 +116,12 @@ export {
   expectRecovery
 } from './testing/assertions.js'
 export { authFailureFixture, lookupCandidatesFixture } from './testing/fixtures.js'
+export {
+  agentSafeCliChecklist,
+  getAgentSafeCliChecklist
+} from './testing/checklist.js'
+export type {
+  AgentSafeChecklistArea,
+  AgentSafeChecklistItem
+} from './testing/checklist.js'
 export { fakeAdapter } from './testing/fake-adapter.js'

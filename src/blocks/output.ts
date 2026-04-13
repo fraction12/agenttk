@@ -22,6 +22,8 @@ function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): st
   const nextStep = typeof details.nextStep === 'string' ? details.nextStep : undefined
   const query = typeof details.query === 'string' ? details.query : undefined
   const reason = typeof details.reason === 'string' ? details.reason : undefined
+  const level = typeof details.level === 'string' ? details.level : undefined
+  const confirmation = typeof details.confirmation === 'string' ? details.confirmation : undefined
   const source = typeof details.source === 'string' ? details.source : undefined
   const key = typeof details.key === 'string' ? details.key : undefined
   const profile = typeof details.profile === 'string' ? details.profile : undefined
@@ -40,6 +42,8 @@ function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): st
   if (profile) lines.push(`Profile: ${profile}`)
   if (account) lines.push(`Account: ${account}`)
   if (reason) lines.push(`Reason: ${reason}`)
+  if (level) lines.push(`Risk: ${level}`)
+  if (confirmation) lines.push(`Confirmation: ${confirmation}`)
   if (expected) lines.push(`Expected: ${expected}`)
 
   if (provider) lines.push(`Provider: ${provider}`)
@@ -82,7 +86,8 @@ function renderHelp(record: HelpRecord): string {
     for (const command of record.commands) {
       const aliasText = command.aliases?.length ? ` (aliases: ${command.aliases.join(', ')})` : ''
       const description = command.description ? ` - ${command.description}` : ''
-      lines.push(`- ${command.name}${aliasText}${description}`)
+      const riskText = command.risk ? ` [risk: ${command.risk.level}${command.risk.confirmation ? `, confirm: ${command.risk.confirmation}` : ''}]` : ''
+      lines.push(`- ${command.name}${aliasText}${riskText}${description}`)
     }
 
     return lines.join('\n')
@@ -91,6 +96,11 @@ function renderHelp(record: HelpRecord): string {
   const lines = [`${record.toolName} ${record.name}`]
   if (record.description) lines.push(record.description)
   if (record.aliases?.length) lines.push(`Aliases: ${record.aliases.join(', ')}`)
+  if (record.risk) {
+    lines.push(`Risk: ${record.risk.level}`)
+    if (record.risk.confirmation) lines.push(`Confirmation: ${record.risk.confirmation}`)
+    if (record.risk.reason) lines.push(`Reason: ${record.risk.reason}`)
+  }
   if (record.usage) lines.push(`Usage: ${record.usage}`)
   if (record.examples?.length) {
     lines.push('Examples:')

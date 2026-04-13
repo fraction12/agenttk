@@ -63,3 +63,25 @@ The system SHALL provide lightweight testing helpers for AgentTK-based CLIs.
 - **THEN** they can still test command behavior through explicit inputs and outputs
 - **AND** the testing kit does not require a heavyweight integration framework or snapshot system
 
+### Requirement: Mutation-safety assertions
+The system SHALL provide reusable testing assertions for mutation-safety metadata.
+
+#### Scenario: Downstream tool tests replay safety
+- **WHEN** a downstream tool test checks a result produced by a mutation command
+- **THEN** AgentTK can assert mutation-safety fields such as replay risk, retry safety, partial state, and idempotency key without custom test helpers
+
+### Requirement: Verification assertions
+The system SHALL provide reusable testing assertions for verification metadata.
+
+#### Scenario: Downstream tool tests verification state
+- **WHEN** a downstream tool test checks whether a mutation result was verified
+- **THEN** AgentTK can assert `verified` and `verificationStatus` directly without custom test helpers
+
+### Requirement: Exported agent-safe review checklist
+The system SHALL export the canonical agent-safe CLI checklist for downstream review and release workflows.
+
+#### Scenario: Downstream repo consumes checklist
+- **WHEN** a downstream CLI repo imports the checklist from AgentTK
+- **THEN** it can use the exported checklist as a stable review bar for PRs, audits, or release gates
+- **AND** the checklist reflects the framework-level capabilities established by recovery, mutation safety, and command risk posture
+

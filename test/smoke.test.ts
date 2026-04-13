@@ -4,6 +4,7 @@ import { z } from 'zod'
 import {
   accountMismatch,
   adapterFailure,
+  agentSafeCliChecklist,
   ambiguousMatch,
   asDryRun,
   authInvalid,
@@ -22,6 +23,7 @@ import {
   expectOk,
   expectRecovery,
   fakeAdapter,
+  getAgentSafeCliChecklist,
   loadConfig,
   malformedConfig,
   missingConfig,
@@ -33,6 +35,7 @@ import {
   resolveById,
   resolveByQuery,
   resolveOne,
+  requireConfirmation,
   runTool,
   selectProfile,
   supportsCapability,
@@ -44,6 +47,7 @@ import {
   markPartial,
   markUnverified,
   markVerified,
+  defineRisk,
   authFailureFixture,
   lookupCandidatesFixture
 } from '../src/index.js'
@@ -136,6 +140,35 @@ test('command help renders without executing the handler', async () => {
   assert.match(result.stdout, /Usage: demo hello \[name\]/)
   assert.match(result.stdout, /Examples:/)
   assert.match(result.stdout, /demo hello Dushyant/)
+})
+
+test('risk metadata appears in help records', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'wipe',
+        description: 'Delete everything in scope',
+        usage: 'demo wipe --confirm',
+        risk: defineRisk({
+          level: 'destructive',
+          confirmation: 'required',
+          reason: 'Deletes all matching records in scope'
+        }),
+        handler: async () => ok({ type: 'wipe', record: { status: 'blocked' } })
+      })
+    ]
+  })
+
+  const commandHelp = await runTool(tool, ['wipe', '--help'])
+  const success = expectOk(commandHelp.result)
+  assert.equal(success.type, 'help')
+  assert.match(commandHelp.stdout, /Risk: destructive/)
+  assert.match(commandHelp.stdout, /Confirmation: required/)
+  assert.match(commandHelp.stdout, /Reason: Deletes all matching records in scope/)
+
+  const toolHelp = await runTool(tool, ['help'])
+  assert.match(toolHelp.stdout, /wipe \[risk: destructive, confirm: required\]/)
 })
 
 test('aliases dispatch to the canonical command', async () => {
@@ -325,6 +358,25 @@ test('testing fixtures provide reusable auth and lookup defaults', () => {
   assert.equal(candidates[0]?.id, 'task-1')
 })
 
+test('agent-safe checklist exposes the expected review gates', () => {
+  const checklist = getAgentSafeCliChecklist()
+  assert.equal(checklist.length, 6)
+  assert.deepEqual(
+    checklist.map((item) => item.id),
+    [
+      'predictable-failure-envelopes',
+      'machine-usable-recovery',
+      'explicit-write-retry-semantics',
+      'post-mutation-verification',
+      'risk-and-confirmation-posture',
+      'review-grade-test-coverage'
+    ]
+  )
+  assert.equal(agentSafeCliChecklist[0]?.area, 'command-contract')
+  assert.notEqual(checklist[0], agentSafeCliChecklist[0])
+  assert.notEqual(checklist[0]?.checks, agentSafeCliChecklist[0]?.checks)
+})
+
 test('human auth output renders provider, account context, and next step', async () => {
   const tool = createTool({
     name: 'demo',
@@ -403,6 +455,32 @@ test('resolveOne returns AMBIGUOUS_MATCH with compact candidates', () => {
   const candidates = failure.error.details?.candidates as Array<{ id: string; label: string }>
   assert.equal(candidates[0]?.id, 'task-1')
   assert.equal(failure.error.details?.nextStep, 'Retry with an explicit id')
+})
+
+test('requireConfirmation blocks risky commands until explicitly confirmed', () => {
+  const risk = defineRisk({
+    level: 'destructive',
+    confirmation: 'required',
+    reason: 'Deletes all matching records in scope'
+  })
+
+  const blocked = requireConfirmation(false, risk, {
+    nextStep: 'Re-run with --confirm if you really mean it'
+  })
+
+  const failure = expectFailure(blocked, 'CONFIRMATION_REQUIRED')
+  expectRecovery(failure, {
+    nextAction: 'confirm',
+    classification: 'user_action_required',
+    retryable: false
+  })
+  assert.equal(failure.error.details?.level, 'destructive')
+  assert.equal(failure.error.details?.confirmation, 'required')
+  assert.equal(failure.error.details?.reason, 'Deletes all matching records in scope')
+  assert.equal(failure.error.details?.nextStep, 'Re-run with --confirm if you really mean it')
+
+  const allowed = requireConfirmation(true, risk)
+  assert.equal(allowed, true)
 })
 
 test('adapter contracts expose stable capability checks', () => {
@@ -607,6 +685,40 @@ test('adapter failures render normalized details in human mode', async () => {
   assert.match(result.stderr, /Capability: tasks.write/)
   assert.match(result.stderr, /Retryable: no/)
   assert.match(result.stderr, /Next step: Reconnect with write scopes/)
+})
+
+test('confirmation-required failures render risk details in human mode', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'wipe',
+        risk: defineRisk({
+          level: 'destructive',
+          confirmation: 'required',
+          reason: 'Deletes all matching records in scope'
+        }),
+        handler: async () =>
+          requireConfirmation(false, defineRisk({
+            level: 'destructive',
+            confirmation: 'required',
+            reason: 'Deletes all matching records in scope'
+          }), {
+            nextStep: 'Re-run with --confirm if you really mean it'
+          })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['wipe'])
+  expectFailure(result.result, 'CONFIRMATION_REQUIRED')
+  assert.match(result.stderr, /Error \[CONFIRMATION_REQUIRED\]: Confirmation required before running this command/)
+  assert.match(result.stderr, /Classification: user_action_required/)
+  assert.match(result.stderr, /Next action: confirm/)
+  assert.match(result.stderr, /Risk: destructive/)
+  assert.match(result.stderr, /Confirmation: required/)
+  assert.match(result.stderr, /Reason: Deletes all matching records in scope/)
+  assert.match(result.stderr, /Next step: Re-run with --confirm if you really mean it/)
 })
 
 test('config failures render structured diagnostics in human mode', async () => {

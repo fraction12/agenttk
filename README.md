@@ -154,6 +154,15 @@ const tool = createTool({
 - `isFailure`
 - `renderResult`
 
+### Recovery semantics
+- `withRecovery`
+
+### Mutation safety
+- `withMutationSafety`
+- `markPartial`
+- `markVerified`
+- `markUnverified`
+
 ### Validation and command behavior
 - `validateInput`
 - `validationError`
@@ -173,6 +182,11 @@ const tool = createTool({
 - `resolveById`
 - `resolveByQuery`
 - `resolveOne`
+
+### Risk and confirmation
+- `defineRisk`
+- `confirmationRequired`
+- `requireConfirmation`
 
 ### Adapter contracts
 - `defineAdapter`
@@ -198,6 +212,10 @@ const tool = createTool({
 - `expectLookupFailure`
 - `expectAdapterFailure`
 - `expectConfigFailure`
+- `expectRecovery`
+- `expectMutationSafety`
+- `agentSafeCliChecklist`
+- `getAgentSafeCliChecklist`
 - `authFailureFixture`
 - `lookupCandidatesFixture`
 - `fakeAdapter`
@@ -328,6 +346,74 @@ const tool = createTool({
   ]
 })
 ```
+
+## Recovery, mutation safety, and risk
+
+AgentTK now exposes the framework-level execution metadata that an autonomous agent actually needs when things get messy.
+
+- `withRecovery(...)` adds `nextAction`, `classification`, and `retryable`
+- `withMutationSafety(...)` adds `retrySafety`, `replayRisk`, `partial`, `verified`, `verificationStatus`, and `idempotencyKey`
+- `defineRisk(...)` and `requireConfirmation(...)` let downstream tools declare and enforce risk posture without hard-coding one approval UX
+
+```ts
+import {
+  defineRisk,
+  markUnverified,
+  ok,
+  requireConfirmation,
+  withMutationSafety,
+  withRecovery
+} from 'agenttk'
+
+const destructiveRisk = defineRisk({
+  level: 'destructive',
+  confirmation: 'required',
+  reason: 'Deletes all matching records in scope'
+})
+
+const blocked = requireConfirmation(false, destructiveRisk, {
+  nextStep: 'Re-run with --confirm if you really mean it'
+})
+
+const created = withMutationSafety(
+  withRecovery(
+    ok({ type: 'card', id: 'card-123', record: { title: 'Pilot card' } }),
+    { nextAction: 'continue', classification: 'unknown', retryable: false }
+  ),
+  {
+    retrySafety: 'verify_first',
+    replayRisk: 'high',
+    verificationStatus: 'unverified'
+  }
+)
+
+const pendingVerification = markUnverified(created)
+
+if (blocked !== true) {
+  console.log(blocked.error.code)
+}
+```
+
+## Agent-safe CLI checklist
+
+AgentTK treats “agent-safe” as a review bar, not marketing fluff. The exported checklist covers the minimum posture a downstream CLI should meet before autonomous use:
+
+- predictable failure envelopes
+- machine-usable recovery semantics
+- explicit retry and replay posture for writes
+- post-mutation verification
+- risk and confirmation posture for dangerous commands
+- review-grade test coverage
+
+```ts
+import { agentSafeCliChecklist } from 'agenttk'
+
+for (const item of agentSafeCliChecklist) {
+  console.log(item.id, item.title)
+}
+```
+
+Use it in PR reviews, CLI audits, or release gates for downstream tools.
 
 ## Testing helpers
 

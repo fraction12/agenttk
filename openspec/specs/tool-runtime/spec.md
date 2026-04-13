@@ -73,3 +73,42 @@ The system SHALL be usable as a dependency from separate TypeScript CLI reposito
 - **THEN** they can import the public runtime primitives from the package entrypoint
 - **AND** they do not need to copy internal files from the AgentTK repo to build a tool
 
+### Requirement: First-class recovery metadata on command results
+The system SHALL support first-class recovery metadata on AgentTK command result envelopes.
+
+#### Scenario: Failure includes recovery metadata
+- **WHEN** a downstream tool returns a failure outcome with recovery hints
+- **THEN** the top-level failure envelope can include `nextAction`, `classification`, and `retryable`
+- **AND** downstream automation does not need to scrape provider-specific details to understand the intended recovery lane
+
+#### Scenario: Success can include follow-up recovery metadata
+- **WHEN** a downstream tool returns a successful outcome that still requires a follow-up step
+- **THEN** the success envelope can include the same recovery metadata fields without breaking the standard success contract
+
+### Requirement: Mutation-safety metadata on command results
+The system SHALL support first-class mutation-safety metadata on AgentTK command result envelopes.
+
+#### Scenario: Write result includes replay-safety cues
+- **WHEN** a downstream tool returns the result of a mutation command
+- **THEN** the result can include `idempotencyKey`, `retrySafety`, `replayRisk`, and `partial`
+- **AND** those fields remain available to downstream automation without parsing human text
+
+### Requirement: Verification metadata on command results
+The system SHALL support first-class verification metadata on AgentTK command result envelopes.
+
+#### Scenario: Successful mutation result is unverified
+- **WHEN** a downstream tool returns a mutation result that has not yet been read back and confirmed
+- **THEN** the result can include `verified: false` and `verificationStatus: unverified`
+- **AND** the recovery layer can point the agent toward `verify_state`
+
+#### Scenario: Successful mutation result is verified
+- **WHEN** a downstream tool confirms the intended post-mutation state
+- **THEN** the result can include `verified: true` and `verificationStatus: verified`
+
+### Requirement: Command risk metadata
+The system SHALL support provider-agnostic risk metadata on AgentTK command definitions.
+
+#### Scenario: Risk metadata appears in command help
+- **WHEN** a downstream tool defines a command with risk metadata
+- **THEN** the generated help records preserve that metadata so operators and agents can inspect the command posture before execution
+
