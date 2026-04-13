@@ -4,7 +4,10 @@ import type {
   CommandResult,
   CommandSuccess,
   RecoveryAction,
-  RecoveryClassification
+  RecoveryClassification,
+  ReplayRisk,
+  RetrySafety,
+  VerificationStatus
 } from '../core/types.js'
 
 export function expectOk<TRecord = unknown>(result: CommandResult<TRecord>): CommandSuccess<TRecord> {
@@ -43,6 +46,38 @@ export function expectRecovery(
   }
   if (options?.retryable !== undefined) {
     assert.equal(result.retryable, options.retryable)
+  }
+  return result
+}
+
+export function expectMutationSafety(
+  result: CommandResult,
+  options?: {
+    retrySafety?: RetrySafety
+    replayRisk?: ReplayRisk
+    partial?: boolean
+    verified?: boolean
+    verificationStatus?: VerificationStatus
+    idempotencyKey?: string
+  }
+): CommandFailure | CommandSuccess {
+  if (options?.retrySafety !== undefined) {
+    assert.equal(result.retrySafety, options.retrySafety)
+  }
+  if (options?.replayRisk !== undefined) {
+    assert.equal(result.replayRisk, options.replayRisk)
+  }
+  if (options?.partial !== undefined) {
+    assert.equal(result.partial, options.partial)
+  }
+  if (options?.verified !== undefined) {
+    assert.equal(result.verified, options.verified)
+  }
+  if (options?.verificationStatus !== undefined) {
+    assert.equal(result.verificationStatus, options.verificationStatus)
+  }
+  if (options?.idempotencyKey !== undefined) {
+    assert.equal(result.idempotencyKey, options.idempotencyKey)
   }
   return result
 }

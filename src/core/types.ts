@@ -40,7 +40,20 @@ export type RecoveryMetadata = {
   retryable?: boolean
 }
 
-export type CommandSuccess<TRecord = unknown> = RecoveryMetadata & {
+export type RetrySafety = 'safe' | 'verify_first' | 'do_not_retry'
+export type ReplayRisk = 'none' | 'low' | 'high' | 'unknown'
+export type VerificationStatus = 'verified' | 'unverified' | 'not_applicable' | 'verification_failed'
+
+export type MutationSafetyMetadata = {
+  idempotencyKey?: string
+  retrySafety?: RetrySafety
+  replayRisk?: ReplayRisk
+  partial?: boolean
+  verified?: boolean
+  verificationStatus?: VerificationStatus
+}
+
+export type CommandSuccess<TRecord = unknown> = RecoveryMetadata & MutationSafetyMetadata & {
   ok: true
   type: string
   destination?: string
@@ -50,7 +63,7 @@ export type CommandSuccess<TRecord = unknown> = RecoveryMetadata & {
   dryRun?: boolean
 }
 
-export type CommandFailure = RecoveryMetadata & {
+export type CommandFailure = RecoveryMetadata & MutationSafetyMetadata & {
   ok: false
   type?: string
   error: {

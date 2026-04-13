@@ -18,6 +18,7 @@ import {
   expectDryRun,
   expectFailure,
   expectLookupFailure,
+  expectMutationSafety,
   expectOk,
   expectRecovery,
   fakeAdapter,
@@ -38,7 +39,11 @@ import {
   unsupportedCapability,
   validateConfig,
   validateInput,
+  withMutationSafety,
   withRecovery,
+  markPartial,
+  markUnverified,
+  markVerified,
   authFailureFixture,
   lookupCandidatesFixture
 } from '../src/index.js'
@@ -698,6 +703,112 @@ test('withRecovery can annotate successful results for follow-up handling', asyn
     classification: 'unknown',
     retryable: false
   })
+})
+
+test('withMutationSafety can attach idempotency and retry metadata to a result', async () => {
+  const result = withMutationSafety(
+    ok({
+      type: 'task',
+      id: 'task-123',
+      destination: 'google_tasks',
+      record: { title: 'Send estimate' }
+    }),
+    {
+      idempotencyKey: 'op-123',
+      retrySafety: 'verify_first',
+      replayRisk: 'unknown'
+    }
+  )
+
+  const success = expectOk(result)
+  expectMutationSafety(success, {
+    idempotencyKey: 'op-123',
+    retrySafety: 'verify_first',
+    replayRisk: 'unknown'
+  })
+})
+
+test('markPartial and verification helpers annotate mutation outcomes safely', async () => {
+  const base = ok({
+    type: 'task',
+    id: 'task-123',
+    destination: 'google_tasks',
+    record: { title: 'Send estimate' }
+  })
+
+  const partial = markPartial(base, {
+    retrySafety: 'verify_first',
+    replayRisk: 'high',
+    idempotencyKey: 'op-123'
+  })
+  expectMutationSafety(partial, {
+    partial: true,
+    retrySafety: 'verify_first',
+    replayRisk: 'high',
+    idempotencyKey: 'op-123'
+  })
+
+  const unverified = markUnverified(partial, {
+    status: 'unverified'
+  })
+  expectMutationSafety(unverified, {
+    partial: true,
+    verificationStatus: 'unverified',
+    verified: false
+  })
+  expectRecovery(unverified, {
+    nextAction: 'verify_state'
+  })
+
+  const verified = markVerified(base, {
+    retrySafety: 'safe',
+    replayRisk: 'none',
+    idempotencyKey: 'op-456'
+  })
+  expectMutationSafety(verified, {
+    verified: true,
+    verificationStatus: 'verified',
+    retrySafety: 'safe',
+    replayRisk: 'none',
+    idempotencyKey: 'op-456'
+  })
+})
+
+test('human output renders mutation safety metadata cleanly', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'save',
+        handler: async () =>
+          markUnverified(
+            markPartial(
+              withMutationSafety(
+                ok({
+                  type: 'task',
+                  id: 'task-123',
+                  destination: 'google_tasks',
+                  record: { title: 'Send estimate' }
+                }),
+                {
+                  idempotencyKey: 'op-123',
+                  retrySafety: 'verify_first',
+                  replayRisk: 'high'
+                }
+              )
+            )
+          )
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['save'])
+  assert.match(result.stdout, /Retry safety: verify_first/)
+  assert.match(result.stdout, /Replay risk: high/)
+  assert.match(result.stdout, /Partial: yes/)
+  assert.match(result.stdout, /Verification: unverified/)
+  assert.match(result.stdout, /Idempotency key: op-123/)
+  assert.match(result.stdout, /Next action: verify_state/)
 })
 
 test('dry-run preserves payload and marks successful results', async () => {

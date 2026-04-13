@@ -1,4 +1,5 @@
 export { createTool } from './core/create-tool.js'
+export { withMutationSafety, markPartial, markUnverified, markVerified } from './core/mutation-safety.js'
 export { withRecovery } from './core/recovery.js'
 export { defineCommand } from './core/define-command.js'
 export { ok, fail, isFailure } from './core/result.js'
@@ -12,9 +13,13 @@ export type {
   CommandResult,
   CommandSuccess,
   HelpRecord,
+  MutationSafetyMetadata,
   RecoveryAction,
   RecoveryClassification,
   RecoveryMetadata,
+  ReplayRisk,
+  RetrySafety,
+  VerificationStatus,
   ToolDefinition,
   ToolHelpRecord,
   ToolIO,
@@ -97,6 +102,7 @@ export {
   expectDryRun,
   expectFailure,
   expectLookupFailure,
+  expectMutationSafety,
   expectOk,
   expectRecovery
 } from './testing/assertions.js'

@@ -7,6 +7,12 @@ function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): st
   if (result.classification) lines.push(`Classification: ${result.classification}`)
   if (result.retryable !== undefined) lines.push(`Retryable: ${result.retryable ? 'yes' : 'no'}`)
   if (result.nextAction) lines.push(`Next action: ${result.nextAction}`)
+  if (result.retrySafety) lines.push(`Retry safety: ${result.retrySafety}`)
+  if (result.replayRisk) lines.push(`Replay risk: ${result.replayRisk}`)
+  if (result.partial !== undefined) lines.push(`Partial: ${result.partial ? 'yes' : 'no'}`)
+  if (result.verificationStatus) lines.push(`Verification: ${result.verificationStatus}`)
+  if (result.verified !== undefined && !result.verificationStatus) lines.push(`Verified: ${result.verified ? 'yes' : 'no'}`)
+  if (result.idempotencyKey) lines.push(`Idempotency key: ${result.idempotencyKey}`)
 
   if (!details || typeof details !== 'object') return lines
 
@@ -99,6 +105,12 @@ function renderSuccessDetails(result: Extract<CommandResult, { ok: true }>): str
   if (result.classification) lines.push(`Classification: ${result.classification}`)
   if (result.retryable !== undefined) lines.push(`Retryable: ${result.retryable ? 'yes' : 'no'}`)
   if (result.nextAction) lines.push(`Next action: ${result.nextAction}`)
+  if (result.retrySafety) lines.push(`Retry safety: ${result.retrySafety}`)
+  if (result.replayRisk) lines.push(`Replay risk: ${result.replayRisk}`)
+  if (result.partial !== undefined) lines.push(`Partial: ${result.partial ? 'yes' : 'no'}`)
+  if (result.verificationStatus) lines.push(`Verification: ${result.verificationStatus}`)
+  if (result.verified !== undefined && !result.verificationStatus) lines.push(`Verified: ${result.verified ? 'yes' : 'no'}`)
+  if (result.idempotencyKey) lines.push(`Idempotency key: ${result.idempotencyKey}`)
   return lines
 }
 
