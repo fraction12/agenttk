@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-04-13
+
 ### Added
 - recovery semantics helpers and metadata for machine-usable next actions
 - mutation safety helpers for retry posture, replay risk, and verification status
