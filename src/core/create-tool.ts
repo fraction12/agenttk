@@ -1,5 +1,5 @@
 import { renderResult } from '../blocks/output.js'
-import { fail, ok } from './result.js'
+import { ok } from './result.js'
 import type {
   CommandContext,
   CommandDefinition,
@@ -10,8 +10,12 @@ import type {
   ToolRuntime
 } from './types.js'
 
-function isHelpFlag(value?: string) {
+function isToolHelpRequest(value?: string) {
   return value === 'help' || value === '--help' || value === '-h'
+}
+
+function isCommandHelpFlag(value?: string) {
+  return value === '--help' || value === '-h'
 }
 
 function findCommand(commands: CommandDefinition[], name?: string) {
@@ -24,19 +28,9 @@ function createContext(definition: ToolDefinition, json: boolean, io?: ToolIO): 
     toolName: definition.name,
     json,
     stdout: io?.stdout ?? process.stdout,
-    stderr: io?.stderr ?? process.stderr
+    stderr: io?.stderr ?? process.stderr,
+    presentation: definition.presentation
   }
-}
-
-function unknownCommandResult(definition: ToolDefinition, commandName?: string) {
-  return fail({
-    error: {
-      code: 'UNKNOWN_COMMAND',
-      message: commandName
-        ? `Unknown command: ${commandName}`
-        : `No command provided for ${definition.name}`
-    }
-  })
 }
 
 function toolHelpResult(definition: ToolDefinition) {
@@ -79,7 +73,7 @@ export function createTool(definition: ToolDefinition): ToolRuntime {
       const [commandName, ...rawArgs] = filteredArgs
       const ctx = createContext(definition, json, io)
 
-      if (!commandName || isHelpFlag(commandName)) {
+      if (!commandName || isToolHelpRequest(commandName)) {
         const result = toolHelpResult(definition)
         renderResult(result, ctx)
         return result
@@ -88,12 +82,12 @@ export function createTool(definition: ToolDefinition): ToolRuntime {
       const command = findCommand(definition.commands, commandName)
 
       if (!command) {
-        const result = unknownCommandResult(definition, commandName)
+        const result = toolHelpResult(definition)
         renderResult(result, ctx)
         return result
       }
 
-      if (rawArgs.some((arg) => isHelpFlag(arg))) {
+      if (rawArgs.some((arg) => isCommandHelpFlag(arg))) {
         const result = commandHelpResult(definition, command)
         renderResult(result, ctx)
         return result

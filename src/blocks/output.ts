@@ -1,4 +1,11 @@
-import type { CommandContext, CommandResult, HelpRecord } from '../core/types.js'
+import type {
+  CommandContext,
+  CommandResult,
+  CommandSuccess,
+  HelpRecord,
+  RecordPresentationField,
+  ToolPresentation
+} from '../core/types.js'
 
 function renderFailureDetails(result: Extract<CommandResult, { ok: false }>): string[] {
   const details = result.error.details
@@ -124,7 +131,51 @@ function renderSuccessDetails(result: Extract<CommandResult, { ok: true }>): str
   return lines
 }
 
-function renderHuman(result: CommandResult): string {
+function fieldKey(field: RecordPresentationField): string {
+  return typeof field === 'string' ? field : field.key
+}
+
+function fieldLabel(field: RecordPresentationField): string {
+  return typeof field === 'string' ? field : field.label ?? field.key
+}
+
+function renderPrimitiveRecordValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'object') return undefined
+  return String(value)
+}
+
+function renderRecordFields(
+  result: CommandSuccess,
+  presentation?: ToolPresentation
+): string[] {
+  if (!result.record || typeof result.record !== 'object' || Array.isArray(result.record)) return []
+
+  if (presentation?.formatRecord) {
+    const formatted = presentation.formatRecord(result.record, result)
+    return Array.isArray(formatted) ? formatted : [formatted]
+  }
+
+  const record = result.record as Record<string, unknown>
+  const fields = presentation?.recordFields
+
+  if (fields?.length) {
+    const lines: string[] = []
+    for (const field of fields) {
+      const value = renderPrimitiveRecordValue(record[fieldKey(field)])
+      if (value === undefined) continue
+      lines.push(`${fieldLabel(field)}: ${value}`)
+    }
+    return lines
+  }
+
+  return Object.entries(record).flatMap(([key, value]) => {
+    const rendered = renderPrimitiveRecordValue(value)
+    return rendered === undefined ? [] : [`${key}: ${rendered}`]
+  })
+}
+
+function renderHuman(result: CommandResult, ctx: CommandContext): string {
   if (!result.ok) {
     const lines = [`Error [${result.error.code}]: ${result.error.message}`, ...renderFailureDetails(result)]
     return lines.join('\n')
@@ -143,12 +194,8 @@ function renderHuman(result: CommandResult): string {
     lines.push(detail)
   }
 
-  if (result.record && typeof result.record === 'object' && !Array.isArray(result.record)) {
-    for (const [key, value] of Object.entries(result.record)) {
-      if (value === undefined || value === null || value === '') continue
-      if (typeof value === 'object') continue
-      lines.push(`${key}: ${String(value)}`)
-    }
+  for (const line of renderRecordFields(result, ctx.presentation)) {
+    lines.push(line)
   }
 
   if (result.warnings?.length) {
@@ -165,5 +212,5 @@ export function renderResult(result: CommandResult, ctx: CommandContext) {
   }
 
   const stream = result.ok ? ctx.stdout : ctx.stderr
-  stream.write(`${renderHuman(result)}\n`)
+  stream.write(`${renderHuman(result, ctx)}\n`)
 }

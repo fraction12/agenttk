@@ -83,9 +83,9 @@ npm install zod
 ## Example
 
 ```ts
-import { createTool, defineCommand, ok } from 'agenttk'
+import { defineCommand, ok, runToolCli } from 'agenttk'
 
-const tool = createTool({
+await runToolCli({
   name: 'demo',
   description: 'Example CLI built with AgentTK',
   commands: [
@@ -103,9 +103,9 @@ const tool = createTool({
     })
   ]
 })
-
-await tool.run(process.argv.slice(2))
 ```
+
+`runToolCli(...)` is the recommended thin entrypoint for downstream CLIs. It handles command dispatch, aliases, help, JSON mode, and stdout/stderr emission so your package entry file can stay focused on command definitions.
 
 ## Validation + dry-run
 
@@ -148,6 +148,7 @@ const tool = createTool({
 
 ### Core runtime
 - `createTool`
+- `runToolCli`
 - `defineCommand`
 - `ok`
 - `fail`
@@ -162,6 +163,16 @@ const tool = createTool({
 - `markPartial`
 - `markVerified`
 - `markUnverified`
+- `verifiedMutation`
+- `unverifiedMutation`
+
+### Runtime kit helpers
+- `hasFlag`
+- `firstPositional`
+- `invalidInput`
+- `operationalFailure`
+- `lockedOrBusy`
+- `confirmationRequiredResult`
 
 ### Validation and command behavior
 - `validateInput`
