@@ -1,6 +1,6 @@
 {
   "name": "agenttk",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "A TypeScript toolkit for building deterministic, agent-friendly CLIs.",
   "author": "Dushyant Garg",
   "type": "module",
