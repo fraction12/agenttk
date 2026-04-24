@@ -9,7 +9,10 @@ export const ErrorCodes = {
   AdapterError: 'ADAPTER_ERROR',
   UnsupportedCapability: 'UNSUPPORTED_CAPABILITY',
   ConfigError: 'CONFIG_ERROR',
-  ConfirmationRequired: 'CONFIRMATION_REQUIRED'
+  ConfirmationRequired: 'CONFIRMATION_REQUIRED',
+  InvalidInput: 'INVALID_INPUT',
+  OperationFailed: 'OPERATION_FAILED',
+  LockedOrBusy: 'LOCKED_OR_BUSY'
 } as const
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes]

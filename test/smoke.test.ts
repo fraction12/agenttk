@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { PassThrough } from 'node:stream'
 import { z } from 'zod'
 import {
   accountMismatch,
@@ -9,6 +10,7 @@ import {
   asDryRun,
   authInvalid,
   authRequired,
+  confirmationRequiredResult,
   createTool,
   defineAdapter,
   defineCommand,
@@ -23,25 +25,33 @@ import {
   expectOk,
   expectRecovery,
   fakeAdapter,
+  firstPositional,
   getAgentSafeCliChecklist,
+  hasFlag,
+  invalidInput,
   loadConfig,
+  lockedOrBusy,
   malformedConfig,
   missingConfig,
   nextStepGuidance,
   notFound,
   ok,
+  operationalFailure,
   requireAuth,
   requireCapability,
   resolveById,
   resolveByQuery,
   resolveOne,
   requireConfirmation,
+  runToolCli,
   runTool,
   selectProfile,
   supportsCapability,
   unsupportedCapability,
+  unverifiedMutation,
   validateConfig,
   validateInput,
+  verifiedMutation,
   withMutationSafety,
   withRecovery,
   markPartial,
@@ -51,6 +61,12 @@ import {
   authFailureFixture,
   lookupCandidatesFixture
 } from '../src/index.js'
+
+function capture(stream: PassThrough) {
+  const chunks: Buffer[] = []
+  stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+  return () => Buffer.concat(chunks).toString('utf8')
+}
 
 test('tool runs a simple command and emits json', async () => {
   const definition = {
@@ -68,6 +84,61 @@ test('tool runs a simple command and emits json', async () => {
   assert.equal(success.type, 'greeting')
   assert.match(result.stdout, /"ok": true/)
   assert.match(result.stdout, /"type": "greeting"/)
+})
+
+test('runToolCli runs a tool definition and emits through provided io', async () => {
+  const stdout = new PassThrough()
+  const stderr = new PassThrough()
+  const readStdout = capture(stdout)
+  const readStderr = capture(stderr)
+  const definition = {
+    name: 'demo',
+    description: 'Example CLI',
+    commands: [
+      defineCommand({
+        name: 'hello',
+        description: 'Say hello',
+        aliases: ['hi'],
+        handler: async ({ rawArgs }) => ok({ type: 'greeting', record: { name: rawArgs[0] ?? 'world' } })
+      })
+    ]
+  }
+
+  const result = await runToolCli(definition, ['hi', 'Dushyant', '--json'], { stdout, stderr })
+  stdout.end()
+  stderr.end()
+
+  const success = expectOk(result)
+  assert.equal(success.type, 'greeting')
+  assert.match(readStdout(), /"name": "Dushyant"/)
+  assert.equal(readStderr(), '')
+})
+
+test('runToolCli emits help for missing and unknown commands', async () => {
+  const stdout = new PassThrough()
+  const stderr = new PassThrough()
+  const readStdout = capture(stdout)
+  const readStderr = capture(stderr)
+  const definition = {
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'hello',
+        description: 'Say hello',
+        handler: async () => ok({ type: 'greeting', record: { message: 'hello' } })
+      })
+    ]
+  }
+
+  const result = await runToolCli(definition, ['bogus'], { stdout, stderr })
+  stdout.end()
+  stderr.end()
+
+  const success = expectOk(result)
+  assert.equal(success.type, 'help')
+  assert.match(readStdout(), /^demo/m)
+  assert.match(readStdout(), /hello - Say hello/)
+  assert.equal(readStderr(), '')
 })
 
 test('tool help renders in human mode', async () => {
@@ -142,6 +213,24 @@ test('command help renders without executing the handler', async () => {
   assert.match(result.stdout, /demo hello Dushyant/)
 })
 
+test('command positional help is passed to the handler', async () => {
+  const tool = createTool({
+    name: 'demo',
+    commands: [
+      defineCommand({
+        name: 'echo',
+        description: 'Echo raw arguments',
+        handler: async ({ rawArgs }) => ok({ type: 'echo', record: { rawArgs } })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['echo', 'help', '--json'])
+  const success = expectOk(result.result)
+  assert.equal(success.type, 'echo')
+  assert.match(result.stdout, /"help"/)
+})
+
 test('risk metadata appears in help records', async () => {
   const tool = createTool({
     name: 'demo',
@@ -207,21 +296,26 @@ test('missing command renders tool help', async () => {
   assert.equal(result.stderr, '')
 })
 
-test('unknown command returns UNKNOWN_COMMAND failure', async () => {
+test('unknown command renders tool help', async () => {
   const definition = {
     name: 'demo',
+    description: 'Example CLI',
     commands: [
       defineCommand({
         name: 'hello',
+        description: 'Say hello',
         handler: async () => ok({ type: 'greeting', record: { message: 'hello' } })
       })
     ]
   }
 
   const result = await runTool(definition, ['goodbye'])
-  const failure = expectFailure(result.result, 'UNKNOWN_COMMAND')
-  assert.match(failure.error.message, /Unknown command: goodbye/)
-  assert.match(result.stderr, /Unknown command: goodbye/)
+  const success = expectOk(result.result)
+  assert.equal(success.type, 'help')
+  assert.match(result.stdout, /^demo/m)
+  assert.match(result.stdout, /Example CLI/)
+  assert.match(result.stdout, /hello - Say hello/)
+  assert.equal(result.stderr, '')
 })
 
 test('handlers receive a stable execution context', async () => {
@@ -284,6 +378,106 @@ test('validation failures can include next-step guidance', async () => {
     assert.equal(result.error.code, 'VALIDATION_ERROR')
     assert.match(result.error.message, /Next step: Run relay inbox --json/)
   }
+})
+
+test('common result helpers create predictable recovery envelopes', () => {
+  const invalid = expectFailure(
+    invalidInput('title is required', {
+      details: { field: 'title' },
+      nextAction: 'fix_input'
+    }),
+    'INVALID_INPUT'
+  )
+  expectRecovery(invalid, {
+    nextAction: 'fix_input',
+    classification: 'user_action_required',
+    retryable: false
+  })
+  assert.equal(invalid.error.details?.field, 'title')
+
+  const failed = expectFailure(
+    operationalFailure('Provider rejected the update', {
+      code: 'TASK_UPDATE_FAILED',
+      details: { provider: 'google' },
+      nextAction: 'abort'
+    }),
+    'TASK_UPDATE_FAILED'
+  )
+  expectRecovery(failed, {
+    nextAction: 'abort',
+    classification: 'unknown',
+    retryable: false
+  })
+  assert.equal(failed.error.details?.provider, 'google')
+
+  const busy = expectFailure(
+    lockedOrBusy('Workspace is locked', {
+      details: { lockId: 'lock-123' }
+    }),
+    'LOCKED_OR_BUSY'
+  )
+  expectRecovery(busy, {
+    nextAction: 'retry',
+    classification: 'transient',
+    retryable: true
+  })
+  assert.equal(busy.error.details?.lockId, 'lock-123')
+
+  const confirm = expectFailure(
+    confirmationRequiredResult('Run again with --confirm', {
+      details: { level: 'destructive' }
+    }),
+    'CONFIRMATION_REQUIRED'
+  )
+  expectRecovery(confirm, {
+    nextAction: 'confirm',
+    classification: 'user_action_required',
+    retryable: false
+  })
+})
+
+test('mutation result helpers create verified and unverified successes', () => {
+  const unverified = expectOk(
+    unverifiedMutation({
+      type: 'task',
+      id: 'task-123',
+      destination: 'google_tasks',
+      record: { title: 'Send estimate' }
+    }, {
+      idempotencyKey: 'op-123',
+      retrySafety: 'verify_first',
+      replayRisk: 'unknown'
+    })
+  )
+  expectMutationSafety(unverified, {
+    verified: false,
+    verificationStatus: 'unverified',
+    idempotencyKey: 'op-123',
+    retrySafety: 'verify_first',
+    replayRisk: 'unknown'
+  })
+  expectRecovery(unverified, {
+    nextAction: 'verify_state'
+  })
+
+  const verified = expectOk(
+    verifiedMutation({
+      type: 'task',
+      id: 'task-456',
+      record: { title: 'Reviewed estimate' }
+    }, {
+      idempotencyKey: 'op-456',
+      retrySafety: 'safe',
+      replayRisk: 'none'
+    })
+  )
+  expectMutationSafety(verified, {
+    verified: true,
+    verificationStatus: 'verified',
+    idempotencyKey: 'op-456',
+    retrySafety: 'safe',
+    replayRisk: 'none'
+  })
 })
 
 test('auth required failure preserves guidance and recovery metadata in json mode', async () => {
@@ -792,6 +986,81 @@ test('human output renders warnings and concise record details', async () => {
   assert.match(result.stdout, /title: Send estimate/)
   assert.match(result.stdout, /due: 2026-04-11/)
   assert.match(result.stdout, /Warnings:/)
+})
+
+test('human output can render configured record fields in order', async () => {
+  const tool = createTool({
+    name: 'demo',
+    presentation: {
+      recordFields: [
+        { key: 'title', label: 'Title' },
+        { key: 'due', label: 'Due' }
+      ]
+    },
+    commands: [
+      defineCommand({
+        name: 'save',
+        handler: async () =>
+          ok({
+            type: 'task',
+            record: {
+              status: 'created',
+              title: 'Send estimate',
+              due: '2026-04-24'
+            }
+          })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['save'])
+  assert.match(result.stdout, /Saved task/)
+  assert.match(result.stdout, /Title: Send estimate/)
+  assert.match(result.stdout, /Due: 2026-04-24/)
+  assert.doesNotMatch(result.stdout, /status: created/)
+})
+
+test('human output can use a light record formatter hook', async () => {
+  const tool = createTool({
+    name: 'demo',
+    presentation: {
+      formatRecord: (record) => {
+        if (!record || typeof record !== 'object' || Array.isArray(record)) return []
+        const task = record as { title?: string, due?: string }
+        return [`Task: ${task.title}`, `Due: ${task.due}`]
+      }
+    },
+    commands: [
+      defineCommand({
+        name: 'show',
+        handler: async () =>
+          ok({
+            type: 'task',
+            record: { title: 'Send estimate', due: '2026-04-24' }
+          })
+      })
+    ]
+  })
+
+  const result = await runTool(tool, ['show'])
+  assert.match(result.stdout, /Task: Send estimate/)
+  assert.match(result.stdout, /Due: 2026-04-24/)
+})
+
+test('raw argument helpers detect flags and first positional values', () => {
+  assert.equal(hasFlag(['--json', '--native'], '--native'), true)
+  assert.equal(hasFlag(['--json'], ['--native', '--json']), true)
+  assert.equal(hasFlag(['--not-native'], '--native'), false)
+
+  assert.equal(firstPositional(['--json', 'task-123'], ['--json']), 'task-123')
+  assert.equal(
+    firstPositional(['--title', 'Send estimate', '--dry-run', 'task-123'], [
+      { name: '--title', takesValue: true },
+      '--dry-run'
+    ]),
+    'task-123'
+  )
+  assert.equal(firstPositional(['--json'], ['--json']), undefined)
 })
 
 test('withRecovery can annotate successful results for follow-up handling', async () => {

@@ -86,11 +86,27 @@ export type CommandFailure = RecoveryMetadata & MutationSafetyMetadata & {
 
 export type CommandResult<TRecord = unknown> = CommandSuccess<TRecord> | CommandFailure
 
+export type RecordPresentationField = string | {
+  key: string
+  label?: string
+}
+
+export type RecordFormatter<TRecord = unknown> = (
+  record: TRecord,
+  result: CommandSuccess<TRecord>
+) => string | string[]
+
+export type ToolPresentation = {
+  recordFields?: RecordPresentationField[]
+  formatRecord?: RecordFormatter
+}
+
 export type CommandContext = {
   toolName: string
   json: boolean
   stdout: NodeJS.WritableStream
   stderr: NodeJS.WritableStream
+  presentation?: ToolPresentation
 }
 
 export type ToolIO = Partial<Pick<CommandContext, 'stdout' | 'stderr'>>
@@ -118,6 +134,7 @@ export type CommandDefinition<TInput = unknown, TRecord = unknown> = {
 export type ToolDefinition = {
   name: string
   description?: string
+  presentation?: ToolPresentation
   commands: CommandDefinition[]
 }
 

@@ -1,4 +1,5 @@
 export { createTool } from './core/create-tool.js'
+export { runToolCli } from './core/run-tool-cli.js'
 export { withMutationSafety, markPartial, markUnverified, markVerified } from './core/mutation-safety.js'
 export { withRecovery } from './core/recovery.js'
 export { defineCommand } from './core/define-command.js'
@@ -20,8 +21,11 @@ export type {
   RecoveryAction,
   RecoveryClassification,
   RecoveryMetadata,
+  RecordFormatter,
+  RecordPresentationField,
   ReplayRisk,
   RetrySafety,
+  ToolPresentation,
   VerificationStatus,
   ToolDefinition,
   ToolHelpRecord,
@@ -30,6 +34,22 @@ export type {
 } from './core/types.js'
 
 export { renderResult } from './blocks/output.js'
+export { firstPositional, hasFlag } from './blocks/args.js'
+export type { RawArgFlag } from './blocks/args.js'
+export {
+  confirmationRequiredResult,
+  invalidInput,
+  lockedOrBusy,
+  operationalFailure,
+  unverifiedMutation,
+  verifiedMutation
+} from './blocks/results.js'
+export type {
+  CommonFailureOptions,
+  MutationResultInput,
+  UnverifiedMutationOptions,
+  VerifiedMutationOptions
+} from './blocks/results.js'
 export {
   adapterFailure,
   defineAdapter,
