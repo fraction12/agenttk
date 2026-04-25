@@ -1,19 +1,29 @@
 # tool-runtime Specification
 
 ## Purpose
-TBD - created by archiving change add-agenttk-v0. Update Purpose after archive.
+The **tool-runtime** specification defines a runtime for creating and executing tools with named commands in AgentTK. It provides a structured way to:
+
+- Define tools and commands with minimal boilerplate.
+- Dispatch commands by name from CLI arguments.
+- Handle success and failure outcomes with structured envelopes.
+- Attach recovery, mutation-safety, verification, and risk metadata to command results.
+
+This specification ensures that tools are portable, predictable, and interoperable across the AgentTK ecosystem.
+
 ## Requirements
+
 ### Requirement: Tool creation and command registration
 The system SHALL provide a runtime for defining a named tool with one or more registered commands.
 
 #### Scenario: Create a tool with commands
-- **WHEN** a developer defines an AgentTK tool with a name and a list of commands
-- **THEN** the runtime stores that tool definition
-- **AND** each command can be addressed by name during execution
+- **WHEN** a developer defines an AgentTK tool with a name, optional description, and a list of commands
+- **THEN** the runtime creates a `ToolRuntime` that stores the tool definition
+- **AND** each command can be addressed by name or alias during execution
 
 #### Scenario: Define a command
-- **WHEN** a developer defines a command with a name, optional description, and handler
-- **THEN** the command is accepted as part of a tool definition without additional framework boilerplate
+- **WHEN** a developer defines a command with a name, optional description, aliases, usage examples, and a handler function
+- **THEN** the command is accepted as part of the tool definition without additional framework boilerplate
+- **AND** the command can include risk metadata (e.g., `level`, `confirmation`, `reason`)
 
 ### Requirement: Command dispatch
 The system SHALL dispatch execution by command name from CLI arguments.
@@ -28,31 +38,45 @@ The system SHALL dispatch execution by command name from CLI arguments.
 - **THEN** the matching canonical command handler is invoked
 - **AND** the remaining arguments are passed to the command as raw arguments
 
-#### Scenario: Unknown command fails predictably
-- **WHEN** the tool is run with a command name that is not registered
-- **THEN** the runtime returns a structured failure with code `UNKNOWN_COMMAND`
-- **AND** the failure does not require downstream tools to parse ad hoc strings to determine what happened
+#### Scenario: Help request for tool
+- **WHEN** the tool is run with `help`, `--help`, or `-h` as the command name
+- **THEN** the runtime returns a help result for the tool, listing all available commands
 
-#### Scenario: Missing command fails predictably
+#### Scenario: Help request for command
+- **WHEN** the tool is run with a command name followed by `--help` or `-h`
+- **THEN** the runtime returns a help result for the specific command, including usage, examples, and risk metadata
+
+#### Scenario: Unknown command
+- **WHEN** the tool is run with a command name that is not registered
+- **THEN** the runtime returns a help result for the tool, listing all available commands
+
+#### Scenario: Missing command
 - **WHEN** the tool is run without providing a command name
-- **THEN** the runtime returns a structured failure with code `UNKNOWN_COMMAND`
-- **AND** the message states that no command was provided for the tool
+- **THEN** the runtime returns a help result for the tool, listing all available commands
 
 ### Requirement: Command execution context
 The system SHALL provide a shared execution context to command handlers.
 
 #### Scenario: Context is available to handlers
 - **WHEN** a command handler runs
-- **THEN** it receives a context including the tool name, JSON output mode flag, and stdout/stderr streams
+- **THEN** it receives a context including:
+  - The `toolName`
+  - A `json` flag indicating if JSON output mode is enabled
+  - `stdout` and `stderr` streams for output
+  - Optional `presentation` settings for formatting command output
 
 ### Requirement: Stable success envelope
 The system SHALL support a standard structured success envelope for command results.
 
 #### Scenario: Successful command result
 - **WHEN** a command succeeds
-- **THEN** it can return an envelope containing `ok: true`
-- **AND** it includes a `type` string
-- **AND** it MAY include `destination`, `id`, `record`, `warnings`, and `dryRun`
+- **THEN** it returns an envelope containing:
+  - `ok: true`
+  - A `type` string
+  - Optional fields: `destination`, `id`, `record`, `warnings`, `dryRun`
+  - Optional recovery metadata: `nextAction`, `classification`, `retryable`
+  - Optional mutation-safety metadata: `idempotencyKey`, `retrySafety`, `replayRisk`, `partial`
+  - Optional verification metadata: `verified`, `verificationStatus`
 
 #### Scenario: Success envelope is JSON-safe
 - **WHEN** a success result is rendered in JSON mode
@@ -61,54 +85,72 @@ The system SHALL support a standard structured success envelope for command resu
 ### Requirement: Stable failure envelope
 The system SHALL support a standard structured failure envelope for command results.
 
+#### Scenario: Command failure
+- **WHEN** a command fails
+- **THEN** it returns an envelope containing:
+  - `ok: false`
+  - An `error` object with `code` and `message`
+  - Optional `details` for additional context
+  - Optional recovery metadata: `nextAction`, `classification`, `retryable`
+
 #### Scenario: Adapter failures stay normalized
 - **WHEN** a downstream command converts an adapter-layer failure into an AgentTK failure result
-- **THEN** the failure envelope can preserve category and retryability hints without leaking raw provider response formats into the runtime contract
+- **THEN** the failure envelope preserves category and retryability hints without leaking raw provider response formats into the runtime contract
 
 ### Requirement: Separate package consumption
 The system SHALL be usable as a dependency from separate TypeScript CLI repositories.
 
 #### Scenario: Import AgentTK from another repo
 - **WHEN** a developer installs AgentTK in another TypeScript CLI repository
-- **THEN** they can import the public runtime primitives from the package entrypoint
-- **AND** they do not need to copy internal files from the AgentTK repo to build a tool
+- **THEN** they can import the public runtime primitives (e.g., `createTool`, `runToolCli`) from the package entrypoint
+- **AND** they can define and run tools without copying internal files from the AgentTK repo
 
 ### Requirement: First-class recovery metadata on command results
 The system SHALL support first-class recovery metadata on AgentTK command result envelopes.
 
-#### Scenario: Failure includes recovery metadata
-- **WHEN** a downstream tool returns a failure outcome with recovery hints
-- **THEN** the top-level failure envelope can include `nextAction`, `classification`, and `retryable`
-- **AND** downstream automation does not need to scrape provider-specific details to understand the intended recovery lane
-
-#### Scenario: Success can include follow-up recovery metadata
-- **WHEN** a downstream tool returns a successful outcome that still requires a follow-up step
-- **THEN** the success envelope can include the same recovery metadata fields without breaking the standard success contract
+#### Scenario: Command result includes recovery metadata
+- **WHEN** a command returns a result (success or failure)
+- **THEN** the result envelope can include:
+  - `nextAction`: The suggested next action (e.g., `fix_input`, `retry`, `confirm`, `abort`)
+  - `classification`: The category of the result (e.g., `user_action_required`, `transient`, `unknown`)
+  - `retryable`: A boolean indicating if the command can be retried
 
 ### Requirement: Mutation-safety metadata on command results
 The system SHALL support first-class mutation-safety metadata on AgentTK command result envelopes.
 
-#### Scenario: Write result includes replay-safety cues
-- **WHEN** a downstream tool returns the result of a mutation command
-- **THEN** the result can include `idempotencyKey`, `retrySafety`, `replayRisk`, and `partial`
-- **AND** those fields remain available to downstream automation without parsing human text
+#### Scenario: Mutation result includes safety metadata
+- **WHEN** a command returns the result of a mutation
+- **THEN** the result can include:
+  - `idempotencyKey`: A unique key for idempotency
+  - `retrySafety`: The safety level of retrying the command
+  - `replayRisk`: The risk level of replaying the command
+  - `partial`: A boolean indicating if the mutation was partial
+  - `verified`: A boolean indicating if the mutation was verified
+  - `verificationStatus`: The status of verification (e.g., `verified`, `unverified`)
 
 ### Requirement: Verification metadata on command results
-The system SHALL support first-class verification metadata on AgentTK command result envelopes.
+The system SHALL support first-class verification metadata on AgentTK command result envelopes for mutation commands.
 
 #### Scenario: Successful mutation result is unverified
-- **WHEN** a downstream tool returns a mutation result that has not yet been read back and confirmed
-- **THEN** the result can include `verified: false` and `verificationStatus: unverified`
-- **AND** the recovery layer can point the agent toward `verify_state`
+- **WHEN** a command returns a mutation result that has not yet been read back and confirmed
+- **THEN** the result includes `verified: false` and `verificationStatus: unverified`
+- **AND** the `nextAction` can be set to `verify_state`
 
 #### Scenario: Successful mutation result is verified
-- **WHEN** a downstream tool confirms the intended post-mutation state
-- **THEN** the result can include `verified: true` and `verificationStatus: verified`
+- **WHEN** a command confirms the intended post-mutation state
+- **THEN** the result includes `verified: true` and `verificationStatus: verified`
 
 ### Requirement: Command risk metadata
 The system SHALL support provider-agnostic risk metadata on AgentTK command definitions.
 
+#### Scenario: Define command with risk metadata
+- **WHEN** a developer defines a command with risk metadata
+- **THEN** the command can include:
+  - `level`: The risk level (e.g., `low`, `medium`, `high`)
+  - `confirmation`: The confirmation requirement (e.g., `none`, `recommended`, `required`)
+  - `reason`: The reason for the risk level
+
 #### Scenario: Risk metadata appears in command help
-- **WHEN** a downstream tool defines a command with risk metadata
-- **THEN** the generated help records preserve that metadata so operators and agents can inspect the command posture before execution
+- **WHEN** a tool generates help for a command with risk metadata
+- **THEN** the help output includes the risk level, confirmation requirement, and reason
 
