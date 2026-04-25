@@ -3,3 +3,5 @@ dist/
 .DS_Store
 npm-debug.log*
 *.tgz
+.opencode/openwork.json
+.opencode/.openwork-enterprise-creators
